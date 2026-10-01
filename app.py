@@ -56,18 +56,27 @@ def create_app() -> Flask:
     @app.context_processor
     def inject_globals():
         from db import queries
+        from db.connection import get_db
         pid = session.get("project_id", "")
         summary = {}
+        projects = []
         if pid:
             try:
                 summary = queries.project_summary(pid)
             except Exception:
                 summary = {}
+        # Get all projects for selector
+        try:
+            db = get_db()
+            projects = list(db.projects.find({}, {"_id": 0, "project_id": 1, "name": 1}).sort("updated_at", -1))
+        except Exception:
+            projects = []
         return {
             "app_title": app.config["APP_TITLE"],
             "app_version": app.config["APP_VERSION"],
             "project_id": pid or "(none)",
             "summary": summary,
+            "projects": projects,
         }
 
     # ---- error handlers ----

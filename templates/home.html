@@ -62,10 +62,20 @@
                     <span class="ar">فتح</span>
                     <span class="en">Open</span>
                   </a>
-                  <form method="post"
+                 <form method="post"
                         action="{{ url_for('home.delete_project', pid=p.project_id) }}"
-                        onsubmit="return confirm('Delete project {{ p.project_id }}?');">
-                    <button class="btn btn-sm btn-outline-danger">✕</button>
+                        class="js-delete-form">
+                    <button type="button"
+                            class="btn btn-sm btn-outline-danger"
+                            data-confirm
+                            data-confirm-method="POST"
+                            data-confirm-en="Delete project {{ p.project_id }}? This cannot be undone."
+                            data-confirm-ar="حذف المشروع {{ p.project_id }}؟ لا يمكن التراجع."
+                            data-confirm-title-en="Delete Project"
+                            data-confirm-title-ar="حذف المشروع"
+                            data-confirm-ok-en="Delete"
+                            data-confirm-ok-ar="حذف"
+                            data-confirm-danger>✕</button>
                   </form>
                 </div>
               </li>

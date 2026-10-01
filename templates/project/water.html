@@ -1,50 +1,371 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="h3 mb-4">Step 02 — Water Point & Basin</h1>
-<div class="row g-3">
-  <div class="col-md-6"><div class="card"><div class="card-header">Water points</div>
-    <div class="card-body">
-      {% if water_points %}<ul class="list-group list-group-flush">
-        {% for p in water_points %}<li class="list-group-item">
-        <strong>{{ p.name }}</strong><br>
-        <small class="text-muted">
-          lon={{ "%.6f"|format(p.location.coordinates[0]) }},
-          lat={{ "%.6f"|format(p.location.coordinates[1]) }},
-          elev={{ "%.0f"|format(p.elev_m|default(0)) }} m
-        </small></li>{% endfor %}
-      </ul>{% else %}
-      <div class="alert alert-warning mb-0">No water point. Run Step 01.</div>
-      {% endif %}
-    </div>
-  </div></div>
-  <div class="col-md-6"><div class="card"><div class="card-header">Basins</div>
-    <div class="card-body">
-      {% if basins %}<ul class="list-group list-group-flush">
-        {% for b in basins %}<li class="list-group-item">
-        <strong>{{ b.name }}</strong><br>
-        <small class="text-muted">elev={{ "%.0f"|format(b.elev_m|default(0)) }} m</small>
-        </li>{% endfor %}
-      </ul>{% else %}
-      <div class="alert alert-info mb-0">No basin yet. Add one below.</div>
-      {% endif %}
-    </div>
-  </div></div>
+
+<h1 class="h3 mb-4 bi">
+  <span class="en">Step 02 — Water Sources &amp; Basins</span>
+  <span class="ar">الخطوة 02 — مصادر المياه والأحواض</span>
+</h1>
+
+{# ------------------------------------------------------------------ toolbar #}
+<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+  <button type="button" class="btn btn-success btn-stack js-source-add"
+          data-bs-toggle="modal" data-bs-target="#sourceModal">
+    <span class="ar">➕ إضافة مصدر مياه</span>
+    <span class="en">➕ Add water source</span>
+  </button>
+  <span class="text-muted small">
+    <span class="en">{{ sources|length }} item(s)</span>
+    <span class="ar">{{ sources|length }} عنصر</span>
+  </span>
+  {% if sources %}
+  <span class="text-muted small ms-auto">
+    <span class="en">Wells &amp; rivers feed the mainline, basins receive the mainline.</span>
+    <span class="ar">الآبار والأنهار تغذي الخط الرئيسي، والأحواض تستقبله.</span>
+  </span>
+  {% endif %}
 </div>
-<div class="card mt-4"><div class="card-header">Add / edit a basin</div><div class="card-body">
-<form method="post">
-  <div class="row g-3">
-    <div class="col-md-4"><label class="form-label">Name</label>
-      <input class="form-control" name="name" value="NEW BASIN — 967m" required></div>
-    <div class="col-md-2"><label class="form-label">lon</label>
-      <input class="form-control" name="lon" value="-4.5856651"></div>
-    <div class="col-md-2"><label class="form-label">lat</label>
-      <input class="form-control" name="lat" value="33.8455339"></div>
-    <div class="col-md-2"><label class="form-label">elev (m)</label>
-      <input class="form-control" name="elev" value="967"></div>
-    <div class="col-md-2"><label class="form-label">side (m)</label>
-      <input class="form-control" name="size" value="30"></div>
+
+{# -------------------------------------------------------------------- table #}
+<div class="card">
+  <div class="card-header bi">
+    <span class="en">Wells / Rivers / Basins / Other water sources</span>
+    <span class="ar">الآبار / الأنهار / الأحواض / مصادر مياه أخرى</span>
   </div>
-  <button class="btn btn-success mt-3" type="submit">Save basin</button>
-</form>
-</div></div>
+  <div class="card-body p-0">
+    {% if sources %}
+    <div class="table-responsive">
+      <table class="table table-sm table-striped align-middle mb-0" id="sources-table">
+        <thead>
+          <tr>
+            <th style="width:55px;">#</th>
+            <th><span class="en">Name</span> / <span class="ar">الاسم</span></th>
+            <th><span class="en">Type</span> / <span class="ar">النوع</span></th>
+            <th><span class="en">Coordinates</span> / <span class="ar">الإحداثيات</span></th>
+            <th><span class="en">Elev (m)</span> / <span class="ar">الارتفاع</span></th>
+            <th><span class="en">Depth (m)</span> / <span class="ar">العمق</span></th>
+            <th><span class="en">Size (m)</span> / <span class="ar">الأبعاد</span></th>
+            <th><span class="en">Discharge (L/s)</span> / <span class="ar">التصرّف</span></th>
+            <th><span class="en">Notes</span> / <span class="ar">ملاحظات</span></th>
+            <th><span class="en">Rev</span> / <span class="ar">نسخة</span></th>
+            <th class="text-center" style="width:170px;">
+              <span class="en">Actions</span> / <span class="ar">إجراءات</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sources %}
+          <tr>
+            <td class="text-muted">{{ loop.index }}</td>
+
+            <td><strong class="num">{{ s.name }}</strong></td>
+
+            <td>
+              {% set t = source_types|selectattr('value', 'equalto', s.source_type)|first %}
+              <span class="badge {{ t.badge if t else 'text-bg-secondary' }}">
+                {{ t.icon if t else '💧' }} {{ t.label_en if t else s.source_type }}
+              </span>
+            </td>
+
+            <td class="num">
+              {% if s.lon is not none and s.lat is not none %}
+                lon {{ "%.6f"|format(s.lon) }}<br>
+                lat {{ "%.6f"|format(s.lat) }}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+
+            <td class="num">{{ "%.2f"|format(s.elev) if s.elev is not none else "—" }}</td>
+            <td class="num">{{ "%.2f"|format(s.depth) if s.depth is not none else "—" }}</td>
+
+            <td class="num">
+              {% if s.source_type == 'basin' %}
+                {% if s.length and s.width %}
+                  {{ "%.1f"|format(s.length) }} × {{ "%.1f"|format(s.width) }}
+                  <br><small class="text-muted">
+                    {{ "%.0f"|format(s.length * s.width) }} m²
+                  </small>
+                {% else %}—{% endif %}
+              {% else %}
+                <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+
+            <td class="num">{{ "%.2f"|format(s.discharge) if s.discharge else "—" }}</td>
+
+            <td class="small text-muted">{{ s.notes or "—" }}</td>
+
+            <td class="num text-muted">{{ s.revision_id or "—" }}</td>
+
+            {# -------- last column: edit + remove -------- #}
+            <td class="text-center text-nowrap">
+              <button type="button"
+                      class="btn btn-sm btn-outline-primary js-source-edit"
+                      data-bs-toggle="modal" data-bs-target="#sourceModal"
+                      data-collection="{{ s.collection }}"
+                      data-orig-name="{{ s.name }}"
+                      data-orig-type="{{ s.source_type }}"
+                      data-name="{{ s.name }}"
+                      data-source-type="{{ s.source_type }}"
+                      data-lon="{{ s.lon if s.lon is not none else '' }}"
+                      data-lat="{{ s.lat if s.lat is not none else '' }}"
+                      data-elev="{{ s.elev if s.elev is not none else '' }}"
+                      data-depth="{{ s.depth if s.depth is not none else '' }}"
+                      data-length="{{ s.length if s.length else '' }}"
+                      data-width="{{ s.width if s.width else '' }}"
+                      data-discharge="{{ s.discharge if s.discharge else '' }}"
+                      data-notes="{{ s.notes }}">
+                <span class="en">✏️ Edit</span><span class="ar">✏️ تعديل</span>
+              </button>
+
+              <form method="post" action="{{ url_for('project.water') }}"
+                    class="d-inline js-source-remove-form">
+                <input type="hidden" name="action" value="delete_source">
+                <input type="hidden" name="collection" value="{{ s.collection }}">
+                <input type="hidden" name="name" value="{{ s.name }}">
+                <button type="button" class="btn btn-sm btn-outline-danger"
+                        data-confirm
+                        data-confirm-method="POST"
+                        data-confirm-en="Remove {{ s.name }} ({{ t.label_en if t else s.source_type }})? Any piping built from it must be rebuilt."
+                        data-confirm-ar="حذف {{ s.name }}؟ يجب إعادة بناء الخطوط المرتبطة به."
+                        data-confirm-title-en="Remove source"
+                        data-confirm-title-ar="حذف المصدر"
+                        data-confirm-ok-en="Remove"
+                        data-confirm-ok-ar="حذف"
+                        data-confirm-danger>🗑</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="card-body">
+      <div class="alert alert-info mb-0 bi">
+        <span class="en">No water source yet. Click <strong>Add water source</strong>, or run Step 01 to import them from a KML file.</span>
+        <span class="ar">لا يوجد مصدر مياه بعد. اضغط <strong>إضافة مصدر مياه</strong> أو نفّذ الخطوة 01 للاستيراد من ملف KML.</span>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+{# -------------------------------------------------------------------- modal #}
+<div class="modal fade" id="sourceModal" tabindex="-1" aria-labelledby="sourceModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <form method="post" action="{{ url_for('project.water') }}" id="sourceForm">
+        <input type="hidden" name="action" value="save_source">
+        <input type="hidden" name="orig_name" value="" id="src-orig-name">
+        <input type="hidden" name="orig_type" value="" id="src-orig-type">
+
+        <div class="modal-header">
+          <h5 class="modal-title bi" id="sourceModalLabel">
+            <span class="en js-modal-title">Add a water source</span>
+            <span class="ar js-modal-title-ar">إضافة مصدر مياه</span>
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label bi" for="src-type">
+                <span class="en">Source type</span><span class="ar">نوع المصدر</span>
+              </label>
+              <select class="form-select" name="source_type" id="src-type" required>
+                {% for t in source_types %}
+                <option value="{{ t.value }}">{{ t.icon }} {{ t.label_en }} / {{ t.label_ar }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label bi" for="src-name">
+                <span class="en">Name</span><span class="ar">الاسم</span>
+              </label>
+              <input class="form-control" type="text" name="name" id="src-name"
+                     maxlength="100" required placeholder="WELL-1">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label bi" for="src-lon">
+                <span class="en">Longitude (WGS84)</span><span class="ar">خط الطول</span>
+              </label>
+              <input class="form-control num" type="number" step="any" name="lon"
+                     id="src-lon" required
+                     value="{{ default_lon if default_lon is not none else '' }}">
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label bi" for="src-lat">
+                <span class="en">Latitude (WGS84)</span><span class="ar">خط العرض</span>
+              </label>
+              <input class="form-control num" type="number" step="any" name="lat"
+                     id="src-lat" required
+                     value="{{ default_lat if default_lat is not none else '' }}">
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label bi" for="src-elev">
+                <span class="en">Elevation (m)</span><span class="ar">الارتفاع (م)</span>
+              </label>
+              <input class="form-control num" type="number" step="any" name="elev" id="src-elev" value="0">
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label bi" for="src-depth">
+                <span class="en">Depth (m)</span><span class="ar">العمق (م)</span>
+              </label>
+              <input class="form-control num" type="number" step="any" min="0"
+                     name="depth" id="src-depth" value="0">
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label bi" for="src-discharge">
+                <span class="en">Discharge (L/s)</span><span class="ar">التصرّف (ل/ث)</span>
+              </label>
+              <input class="form-control num" type="number" step="any" min="0" name="discharge" id="src-discharge" value="0">
+            </div>
+
+            <div class="col-md-4 js-basin-only">
+              <label class="form-label bi" for="src-length">
+                <span class="en">Basin length (m)</span><span class="ar">طول الحوض (م)</span>
+              </label>
+              <input class="form-control num" type="number" step="any" min="0"
+                     name="length" id="src-length" value="30">
+            </div>
+
+            <div class="col-md-4 js-basin-only">
+              <label class="form-label bi" for="src-width">
+                <span class="en">Basin width (m)</span><span class="ar">عرض الحوض (م)</span>
+              </label>
+              <input class="form-control num" type="number" step="any" min="0"
+                     name="width" id="src-width" value="30">
+            </div>
+
+            <div class="col-12">
+              <label class="form-label bi" for="src-notes">
+                <span class="en">Notes</span><span class="ar">ملاحظات</span>
+              </label>
+              <textarea class="form-control" name="notes" id="src-notes" rows="2"
+                        maxlength="500" placeholder="Pump size, water rights, access…"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary btn-stack" data-bs-dismiss="modal">
+            <span class="ar">إلغاء</span><span class="en">Cancel</span>
+          </button>
+          <button type="submit" class="btn btn-success btn-stack">
+            <span class="ar">حفظ</span><span class="en">Save</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<style>
+  #sources-table th, #sources-table td { white-space: nowrap; }
+  #sources-table td.small { white-space: normal; min-width: 140px; }
+  #sources-table .badge { font-size: 0.78rem; }
+  .js-basin-only { display: none; }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  const modalEl = document.getElementById("sourceModal");
+  if (!modalEl) return;
+  const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+
+  const form      = document.getElementById("sourceForm");
+  const fType     = document.getElementById("src-type");
+  const fName     = document.getElementById("src-name");
+  const fLon      = document.getElementById("src-lon");
+  const fLat      = document.getElementById("src-lat");
+  const fElev     = document.getElementById("src-elev");
+  const fDepth    = document.getElementById("src-depth");
+  const fLength   = document.getElementById("src-length");
+  const fWidth    = document.getElementById("src-width");
+  const fDisch    = document.getElementById("src-discharge");
+  const fNotes    = document.getElementById("src-notes");
+  const origName  = document.getElementById("src-orig-name");
+  const origType  = document.getElementById("src-orig-type");
+  const titleEn   = modalEl.querySelector(".js-modal-title");
+  const titleAr   = modalEl.querySelector(".js-modal-title-ar");
+
+  const DEFAULTS = {
+    lon: "{{ default_lon if default_lon is not none else '' }}",
+    lat: "{{ default_lat if default_lat is not none else '' }}"
+  };
+
+  const isBasin = () => fType.value === "basin";
+
+  /* basin size inputs only apply to a basin */
+  function syncForm() {
+    modalEl.querySelectorAll(".js-basin-only").forEach(function (el) {
+      el.style.display = isBasin() ? "" : "none";
+    });
+    [fLength, fWidth].forEach(function (el) {
+      el.required = isBasin();
+    });
+  }
+
+  function setModalTitle(editing) {
+    titleEn.textContent = editing ? "Edit water source" : "Add a water source";
+    titleAr.textContent = editing ? "تعديل مصدر المياه" : "إضافة مصدر مياه";
+  }
+
+  /* ---- ADD: reset to a blank form ---- */
+  document.querySelectorAll(".js-source-add").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      form.reset();
+      origName.value = "";
+      origType.value = "";
+      fType.value = "well";
+      fElev.value = 0;
+      fDepth.value = isBasin() ? 2 : 50;
+      fLength.value = 30;
+      fWidth.value = 30;
+      fDisch.value = 0;
+      fNotes.value = "";
+      fLon.value = DEFAULTS.lon;
+      fLat.value = DEFAULTS.lat;
+      setModalTitle(false);
+      syncForm();
+    });
+  });
+
+  /* ---- EDIT: prefill from the row ---- */
+  document.querySelectorAll(".js-source-edit").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      const d = btn.dataset;
+      origName.value = d.origName || "";
+      origType.value = d.origType || "";
+      fType.value   = d.sourceType || "well";
+      fName.value   = d.name || "";
+      fLon.value    = d.lon || "";
+      fLat.value    = d.lat || "";
+      fElev.value   = d.elev || 0;
+      fDepth.value  = d.depth || 0;
+      fLength.value = d.length || 30;
+      fWidth.value  = d.width || 30;
+      fDisch.value  = d.discharge || 0;
+      fNotes.value  = d.notes || "";
+      setModalTitle(true);
+      syncForm();
+    });
+  });
+
+  fType.addEventListener("change", syncForm);
+})();
+</script>
 {% endblock %}

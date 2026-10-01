@@ -3,8 +3,7 @@
 
 <style>
   /* =========================================================
-     OVERVIEW — 8 metric cards in one horizontal row on desktop
-     Fully responsive: 8 → 6 → 4 → 2 cards per row
+     OVERVIEW — bilingual, responsive, with map
      ========================================================= */
 
   .overview-wrapper {
@@ -24,10 +23,60 @@
     margin-bottom: 1rem;
   }
 
-  /* -------- THE GRID -------- */
+  /* ---------- MAP ---------- */
+  .overview-map-card {
+    background: #ffffff;
+    border: 1px solid #e3e6ea;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    margin-bottom: 1.25rem;
+    overflow: hidden;
+  }
+
+  .overview-map-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.65rem 1rem;
+    background: #f0f3f6;
+    border-bottom: 1px solid #e3e6ea;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .overview-map-header .title-en {
+    font-weight: 600;
+    color: #2D6A4F;
+  }
+  .overview-map-header .title-ar {
+    font-weight: 600;
+    color: #2D6A4F;
+  }
+
+  .overview-map-controls {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .overview-map-controls button {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.65rem;
+  }
+
+  #overview-map {
+    height: 420px;
+    width: 100%;
+    background: #eef2f5;
+  }
+
+  @media (max-width: 768px) {
+    #overview-map { height: 300px; }
+  }
+
+  /* ---------- metric cards ---------- */
   .overview-cards {
     display: grid !important;
-    /* 8 equal columns on desktop; auto-fit shrinks gracefully */
     grid-template-columns: repeat(8, minmax(0, 1fr)) !important;
     gap: 0.6rem !important;
     width: 100% !important;
@@ -36,7 +85,6 @@
     list-style: none;
   }
 
-  /* Card itself */
   .overview-cards > .overview-card {
     display: flex !important;
     flex-direction: column !important;
@@ -59,19 +107,13 @@
     box-shadow: 0 3px 8px rgba(45,106,79,0.12);
   }
 
-  .overview-card-icon {
-    font-size: 1.4rem;
-    line-height: 1;
-    margin-bottom: 0.25rem;
-  }
-
+  .overview-card-icon { font-size: 1.4rem; line-height: 1; margin-bottom: 0.25rem; }
   .overview-card-value {
     font-size: clamp(1.2rem, 2.2vw, 1.8rem);
     font-weight: 700;
     color: #2D6A4F;
     line-height: 1.1;
   }
-
   .overview-card-labels {
     display: flex;
     flex-direction: column;
@@ -81,55 +123,24 @@
     font-size: 0.72rem;
     width: 100%;
   }
-  .overview-card-labels .en {
-    color: #495057;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-  }
-  .overview-card-labels .ar {
-    color: #6c757d;
-    font-size: 0.78rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 100%;
-  }
+  .overview-card-labels .en { color: #495057; font-weight: 500; }
+  .overview-card-labels .ar { color: #6c757d; font-size: 0.78rem; }
 
-  /* -------- RESPONSIVE BREAKPOINTS -------- */
-  /* < 1400px  →  6 cards per row */
   @media (max-width: 1400px) {
-    .overview-cards {
-      grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
-    }
+    .overview-cards { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
   }
-  /* < 1100px  →  4 cards per row */
   @media (max-width: 1100px) {
-    .overview-cards {
-      grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-    }
+    .overview-cards { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
   }
-  /* < 768px   →  3 cards per row */
   @media (max-width: 768px) {
-    .overview-cards {
-      grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-    }
+    .overview-cards { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
   }
-  /* < 500px   →  2 cards per row */
   @media (max-width: 500px) {
-    .overview-cards {
-      grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    }
-    .overview-title {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.25rem;
-    }
+    .overview-cards { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+    .overview-title { flex-direction: column; align-items: flex-start; gap: 0.25rem; }
   }
 
-  /* -------- Actions row (Quick + Exports) -------- */
+  /* ---------- actions ---------- */
   .overview-actions {
     display: grid !important;
     grid-template-columns: 1fr !important;
@@ -137,9 +148,7 @@
     margin-top: 1rem;
   }
   @media (min-width: 768px) {
-    .overview-actions {
-      grid-template-columns: 1fr 1fr !important;
-    }
+    .overview-actions { grid-template-columns: 1fr 1fr !important; }
   }
   .overview-action-card .list-group-item {
     display: flex;
@@ -147,22 +156,48 @@
     align-items: center;
     gap: 0.75rem;
   }
-  .overview-action-card .list-group-item .ar {
-    text-align: right;
+  .overview-action-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .overview-action-item .ar {
     color: #6c757d;
     font-size: 0.9em;
   }
 
-  /* -------- Alert -------- */
+  /* ---------- alert ---------- */
   .overview-alert {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;
   }
   .overview-alert .en,
-  .overview-alert .ar {
-    display: block;
+  .overview-alert .ar { display: block; }
+
+  /* ---------- empty-state ---------- */
+  .overview-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 420px;
+    background: #f8f9fa;
+    border: 2px dashed #cfe6dd;
+    border-radius: 12px;
+    color: #6c757d;
+    text-align: center;
+    padding: 1.5rem;
+    margin-bottom: 1.25rem;
   }
+  .overview-empty .icon {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.7;
+  }
+  .overview-empty .en { font-weight: 600; color: #2D6A4F; margin-bottom: 0.25rem; }
+  .overview-empty .ar { color: #6c757d; margin-bottom: 0.75rem; }
 </style>
 
 <div class="overview-wrapper">
@@ -172,8 +207,55 @@
     <span class="ar">نظرة عامة على المشروع</span>
   </h1>
 
+  {# ================= MAP ================= #}
+  {% if has_data %}
+    <div class="overview-map-card">
+      <div class="overview-map-header">
+        <div class="d-flex gap-3 align-items-center">
+          <span class="title-en">🗺 Project Map</span>
+          <span class="title-ar">🗺 خريطة المشروع</span>
+        </div>
+        <div class="overview-map-controls">
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="ovFitAll()">
+            <span class="en">Fit</span><span class="ar">ملاءمة</span>
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="ovToggleLayer('property')">
+            <span class="en">Property</span><span class="ar">الملك</span>
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="ovToggleLayer('sectors')">
+            <span class="en">Sectors</span><span class="ar">القطاعات</span>
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="ovToggleLayer('zones')">
+            <span class="en">Zones</span><span class="ar">المناطق</span>
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="ovToggleLayer('pipes')">
+            <span class="en">Pipes</span><span class="ar">الأنابيب</span>
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="ovToggleLayer('rows')">
+            <span class="en">Rows</span><span class="ar">الصفوف</span>
+          </button>
+          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="ovToggleLayer('trees')">
+            <span class="en">Trees</span><span class="ar">الأشجار</span>
+          </button>
+        </div>
+      </div>
+      <div id="overview-map"></div>
+    </div>
+  {% else %}
+    <div class="overview-empty">
+      <div class="icon">🗺</div>
+      <div class="en">No KML data loaded yet</div>
+      <div class="ar">لا توجد بيانات KML محمّلة بعد</div>
+      <a href="{{ url_for('project.initial') }}" class="btn btn-success btn-stack">
+        <span class="ar">📥 ارفع ملف KML</span>
+        <span class="en">📥 Upload KML</span>
+      </a>
+    </div>
+  {% endif %}
+
+  {# ================= METRIC CARDS ================= #}
   <div class="overview-cards">
-    {% for  label_ar, label_en, key, icon in [
+    {% for label_en, label_ar, key, icon in [
         ('Sectors',   'القطاعات',    'sectors',   '📐'),
         ('Zones',     'المناطق',     'zones',     '🔷'),
         ('Valves',    'الصمامات',    'valves',    '🔴'),
@@ -187,8 +269,8 @@
         <div class="overview-card-icon">{{ icon }}</div>
         <div class="overview-card-value">{{ summary.get(key, 0) }}</div>
         <div class="overview-card-labels">
-          <span class="ar">{{ label_en }}</span>
-          <span class="en">{{ label_ar }}</span>
+          <span class="en">{{ label_en }}</span>
+          <span class="ar">{{ label_ar }}</span>
         </div>
       </div>
     {% endfor %}
@@ -212,61 +294,175 @@
         <span class="en">Quick actions</span>
         <span class="ar">إجراءات سريعة</span>
       </div>
+      <div class="card overview-action-card">
+      <div class="card-header bi">
+        <span class="en">Quick actions</span>
+        <span class="ar">إجراءات سريعة</span>
+      </div>
       <div class="list-group list-group-flush">
-        <a href="{{ url_for('project.initial') }}" class="list-group-item list-group-item-action bi">
+        <a href="{{ url_for('project.close_project') }}" class="list-group-item list-group-item-action overview-action-item">
+          <span class="en">❌ Close project</span>
+          <span class="ar">❌ إغلاق المشروع</span>
+        </a>
+      <div class="list-group list-group-flush">
+        <a href="{{ url_for('project.initial') }}" class="list-group-item list-group-item-action overview-action-item">
           <span class="en">📥 Upload initial KML</span>
           <span class="ar">📥 رفع ملف KML الأولي</span>
         </a>
-        <a href="{{ url_for('geometry.zones') }}" class="list-group-item list-group-item-action bi">
+        <a href="{{ url_for('geometry.zones') }}" class="list-group-item list-group-item-action overview-action-item">
           <span class="en">🔷 Build zones</span>
           <span class="ar">🔷 إنشاء المناطق</span>
         </a>
-        <a href="{{ url_for('field.rows') }}" class="list-group-item list-group-item-action bi">
+        <a href="{{ url_for('field.rows') }}" class="list-group-item list-group-item-action overview-action-item">
           <span class="en">➖ Build rows</span>
           <span class="ar">➖ إنشاء الصفوف</span>
         </a>
-        <a href="{{ url_for('field.trees') }}" class="list-group-item list-group-item-action bi">
+        <a href="{{ url_for('field.trees') }}" class="list-group-item list-group-item-action overview-action-item">
           <span class="en">🌳 Place trees</span>
           <span class="ar">🌳 زرع الأشجار</span>
         </a>
-        <a href="{{ url_for('map_view.map_page') }}" class="list-group-item list-group-item-action bi">
-          <span class="en">🗺 Open map</span>
-          <span class="ar">🗺 فتح الخريطة</span>
+        <a href="{{ url_for('map_view.map_page') }}" class="list-group-item list-group-item-action overview-action-item">
+          <span class="en">🗺 Open full map</span>
+          <span class="ar">🗺 فتح الخريطة الكاملة</span>
+        </a>
+                <a href="{{ url_for('project.close_project') }}"
+           class="list-group-item list-group-item-action overview-action-item text-danger"
+           onclick="return confirm('Close the current project? / إغلاق المشروع الحالي؟');">
+          <span class="en">🚪 Close Project</span>
+          <span class="ar">🚪 إغلاق المشروع</span>
         </a>
       </div>
     </div>
 
-    <div class="card overview-action-card">
-      <div class="card-header bi">
-        <span class="en">Exports</span>
-        <span class="ar">التصدير</span>
-      </div>
-      <div class="list-group list-group-flush">
-        <a href="{{ url_for('export.kml') }}" class="list-group-item list-group-item-action bi">
-          <span class="en">📄 Download KML</span>
-          <span class="ar">📄 تنزيل KML</span>
-        </a>
-        <a href="{{ url_for('export.dxf') }}" class="list-group-item list-group-item-action bi">
-          <span class="en">📐 Download DXF (AutoCAD)</span>
-          <span class="ar">📐 تنزيل DXF (أوتوكاد)</span>
-        </a>
-        <a href="{{ url_for('export.geojson') }}" class="list-group-item list-group-item-action bi">
-          <span class="en">🌐 Download GeoJSON</span>
-          <span class="ar">🌐 تنزيل GeoJSON</span>
-        </a>
-        <a href="{{ url_for('export.trees_csv') }}" class="list-group-item list-group-item-action bi">
-          <span class="en">📊 Download Trees CSV</span>
-          <span class="ar">📊 تنزيل قائمة الأشجار CSV</span>
-        </a>
-        <a href="{{ url_for('export.bom') }}" class="list-group-item list-group-item-action bi">
-          <span class="en">📦 Bill of Materials</span>
-          <span class="ar">📦 قائمة المواد</span>
-        </a>
-      </div>
-    </div>
-
+    
   </div>
 
 </div>
 
+{% endblock %}
+
+{% block scripts %}
+{% if has_data %}
+<script>
+  window.OVERVIEW_API = {
+    geojson: "{{ url_for('api.geojson') }}",
+    bounds:  "{{ url_for('api.bounds') }}"
+  };
+
+  (function () {
+    // init map
+    const map = L.map("overview-map", {
+      zoomControl: true,
+      attributionControl: true
+    }).setView([33.8455, -4.5860], 15);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 20,
+      attribution: "© OpenStreetMap"
+    }).addTo(map);
+
+    // layer groups
+    const layers = {
+      property:  L.layerGroup().addTo(map),
+      water:     L.layerGroup().addTo(map),
+      basins:    L.layerGroup().addTo(map),
+      sectors:   L.layerGroup().addTo(map),
+      zones:     L.layerGroup(),
+      pipes:     L.layerGroup().addTo(map),
+      rows:      L.layerGroup(),
+      valves:    L.layerGroup().addTo(map),
+      trees:     L.layerGroup(),
+      driplines: L.layerGroup(),
+      manifolds: L.layerGroup()
+    };
+
+    const colors = {
+      property:  "#000000",
+      water:     "#e91e63",
+      basins:    "#0288d1",
+      sectors:   "#00bcd4",
+      zones:     "#3f51b5",
+      pipes:     "#ff0000",
+      rows:      "#00c853",
+      valves:    "#9c27b0",
+      trees:     "#2e7d32",
+      driplines: "#00897b",
+      manifolds: "#ff9800"
+    };
+
+    function styleFor(coll) {
+      return {
+        color: colors[coll] || "#888",
+        weight: coll === "property" ? 2 : 1.5,
+        fillOpacity: coll === "zones" ? 0.15 : 0,
+        opacity: 0.9
+      };
+    }
+
+    function addFeature(f) {
+      const coll = f.properties.collection;
+      if (!layers[coll]) return;
+      const g = f.geometry;
+      const col = colors[coll] || "#888";
+      const nm = f.properties.name || "";
+
+      if (g.type === "Point") {
+        const ll = [g.coordinates[1], g.coordinates[0]];
+        const m = L.circleMarker(ll, {
+          radius: coll === "trees" ? 2 : 5,
+          color: col,
+          fillColor: col,
+          fillOpacity: 0.85,
+          weight: 1
+        }).bindTooltip(nm);
+        layers[coll].addLayer(m);
+      } else if (g.type === "LineString") {
+        const ll = g.coordinates.map(c => [c[1], c[0]]);
+        const line = L.polyline(ll, styleFor(coll)).bindTooltip(nm);
+        layers[coll].addLayer(line);
+      } else if (g.type === "Polygon") {
+        const ll = g.coordinates[0].map(c => [c[1], c[0]]);
+        const poly = L.polygon(ll, styleFor(coll)).bindTooltip(nm);
+        layers[coll].addLayer(poly);
+      }
+    }
+
+    fetch(window.OVERVIEW_API.geojson)
+      .then(r => r.json())
+      .then(fc => {
+        if (!fc.features || !fc.features.length) {
+          return;
+        }
+        fc.features.forEach(addFeature);
+        // fit to property bounds
+        fetch(window.OVERVIEW_API.bounds)
+          .then(r => r.json())
+          .then(d => {
+            if (d.bounds) {
+              map.fitBounds(d.bounds, { padding: [20, 20] });
+            }
+          });
+      })
+      .catch(err => console.error("Map load failed:", err));
+
+    // controls
+    window.ovFitAll = function () {
+      fetch(window.OVERVIEW_API.bounds)
+        .then(r => r.json())
+        .then(d => {
+          if (d.bounds) map.fitBounds(d.bounds, { padding: [20, 20] });
+        });
+    };
+
+    window.ovToggleLayer = function (name) {
+      if (!layers[name]) return;
+      if (map.hasLayer(layers[name])) {
+        map.removeLayer(layers[name]);
+      } else {
+        map.addLayer(layers[name]);
+      }
+    };
+  })();
+</script>
+{% endif %}
 {% endblock %}

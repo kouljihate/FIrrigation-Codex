@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class SectorSave(BaseModel):
@@ -69,8 +69,113 @@ class BasinCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     lon: float
     lat: float
+    length: float = Field(default=30.0, gt=0)
+    width: float = Field(default=30.0, gt=0)
+    depth: float = Field(default=2.0, gt=0)
     elev: float = Field(default=0.0)
-    size: float = Field(default=30.0, gt=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def remove_empty_strings(cls, data):
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if v != ""}
+        return data
+
+
+class WellCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    lon: float
+    lat: float
+    elev: float = Field(default=0.0)
+    depth: float = Field(default=50.0, gt=0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def remove_empty_strings(cls, data):
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if v != ""}
+        return data
+
+
+# ------------------------------------------------------- water & basin step
+WATER_SOURCE_TYPES: tuple[str, ...] = ("well", "river", "basin", "other")
+BASIN_SOURCE_TYPE = "basin"
+POINT_SOURCE_TYPES: tuple[str, ...] = tuple(
+    t for t in WATER_SOURCE_TYPES if t != BASIN_SOURCE_TYPE
+)
+# display order in the Water & Basin table
+SOURCE_TYPE_ORDER: tuple[str, ...] = WATER_SOURCE_TYPES
+
+SOURCE_TYPE_LABELS: dict[str, tuple[str, str]] = {
+    "well":   ("Well", "بئر"),
+    "river":  ("River", "نهر"),
+    "basin":  ("Basin", "حوض"),
+    "other":  ("Other water source", "مصدر مياه آخر"),
+}
+
+SOURCE_TYPE_ICONS: dict[str, str] = {
+    "well": "🕳️", "river": "🏞️", "basin": "🛢️", "other": "💧",
+}
+
+SOURCE_TYPE_BADGES: dict[str, str] = {
+    "well":  "text-bg-primary",
+    "river": "text-bg-info",
+    "basin": "text-bg-success",
+    "other": "text-bg-secondary",
+}
+
+
+class WaterSourceCreate(BaseModel):
+    """Well / river / basin / other water source (Step 02)."""
+
+    name: str = Field(..., min_length=1, max_length=100)
+    source_type: str = Field(default="well")
+    lon: float
+    lat: float
+    elev: float = Field(default=0.0)
+    depth: float = Field(default=0.0)
+    length: float = Field(default=0.0, ge=0)
+    width: float = Field(default=0.0, ge=0)
+    discharge: float = Field(default=0.0, ge=0)
+    notes: str = Field(default="", max_length=500)
+
+    @field_validator("source_type")
+    @classmethod
+    def validate_source_type(cls, v: str) -> str:
+        v = (v or "well").strip().lower()
+        if v not in WATER_SOURCE_TYPES:
+            raise ValueError(
+                f"unknown source_type: {v} "
+                f"(expected one of {', '.join(WATER_SOURCE_TYPES)})"
+            )
+        return v
+
+    @field_validator("lon")
+    @classmethod
+    def validate_lon(cls, v: float) -> float:
+        if not -180.0 <= v <= 180.0:
+            raise ValueError("longitude must be between -180 and 180")
+        return v
+
+    @field_validator("lat")
+    @classmethod
+    def validate_lat(cls, v: float) -> float:
+        if not -90.0 <= v <= 90.0:
+            raise ValueError("latitude must be between -90 and 90")
+        return v
+
+    @model_validator(mode="before")
+    @classmethod
+    def remove_empty_strings(cls, data):
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if v != ""}
+        return data
+
+    @model_validator(mode="after")
+    def basin_needs_size(self):
+        if self.source_type == BASIN_SOURCE_TYPE and (self.length <= 0 or self.width <= 0):
+            raise ValueError("a basin needs a length and a width greater than 0")
+        return self
 
 
 class NewProject(BaseModel):

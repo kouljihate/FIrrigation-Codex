@@ -1,0 +1,16 @@
+# Python bytecode and test caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local environment and configuration
+venv/
+.venv/
+.env
+
+# Runtime output
+logs/
+
+# User-generated imports and exports
+imports/
+exports/

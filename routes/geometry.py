@@ -48,6 +48,27 @@ def sectors():
     return render_template("geometry/sectors.html", sectors=sectors)
 
 
+@bp.route("/sectors/enhanced")
+def sectors_enhanced():
+    """Enhanced sector management with interactive map."""
+    pid = session.get("project_id", "")
+    if not pid:
+        return redirect(url_for("home.home"))
+
+    rows = queries.get_sectors(pid)
+    sectors = []
+    for s in rows:
+        ring = s["geom"]["coordinates"][0]
+        sectors.append({
+            "code":  s.get("sector_code") or s["name"],
+            "name":  s["name"],
+            "coords_text": "\n".join(f"{x:.7f},{y:.7f}" for x, y in ring),
+            "vertices": len(ring),
+            "area_m2":  s.get("area_m2", 0),
+        })
+    return render_template("geometry/sectors_enhanced.html", sectors=sectors)
+
+
 @bp.route("/sectors/save", methods=["POST"])
 @validate_form(SectorSave)
 def save_sector(data: SectorSave):
@@ -100,6 +121,142 @@ def save_sector(data: SectorSave):
         "vertices": len(ring) - 1,   # excluding closing duplicate
         "area_m2": area_m2,
         "area_ha": area_m2 / 10000.0,
+    })
+
+
+@bp.route("/sectors/add", methods=["POST"])
+@validate_form(SectorSave)
+def add_sector(data: SectorSave):
+    """Add a new sector."""
+    pid = session.get("project_id", "")
+    if not pid:
+        return jsonify({"ok": False, "error": "no project"}), 400
+
+    code = data.code
+    coords_text = data.coords
+
+    # Check if sector already exists
+    db = get_db()
+    exists = db.sectors.find_one({"project_id": pid, "sector_code": code})
+    if exists:
+        return jsonify({"ok": False, "error": f"Sector '{code}' already exists"}), 400
+
+    # Parse coords
+    ring = []
+    for line in coords_text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        parts = [p.strip() for p in line.split(",")]
+        lon = float(parts[0])
+        lat = float(parts[1])
+        ring.append([lon, lat])
+
+    if len(ring) < 3:
+        return jsonify({"ok": False, "error": "need at least 3 points"}), 400
+
+    # Auto-close ring
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
+
+    area_m2 = _ring_area_m2(ring)
+
+    revision = repository.new_revision(pid, "03_sectors_add", f"Add {code}")
+    now = datetime.now(timezone.utc)
+
+    repository.upsert("sectors",
+        {"project_id": pid, "sector_code": code},
+        {
+            "project_id": pid,
+            "name": code,
+            "sector_code": code,
+            "geom": {"type": "Polygon", "coordinates": [ring]},
+            "area_m2": area_m2,
+            "revision_id": revision,
+            "updated_at": now,
+        })
+
+    return jsonify({
+        "ok": True,
+        "code": code,
+        "vertices": len(ring) - 1,
+        "area_m2": area_m2,
+        "area_ha": area_m2 / 10000.0,
+    })
+
+
+@bp.route("/sectors/delete", methods=["POST"])
+def delete_sector():
+    """Delete a sector by code."""
+    pid = session.get("project_id", "")
+    if not pid:
+        return jsonify({"ok": False, "error": "no project"}), 400
+
+    code = request.form.get("code", "").strip()
+    if not code:
+        return jsonify({"ok": False, "error": "missing code"}), 400
+
+    db = get_db()
+    result = db.sectors.delete_one({"project_id": pid, "sector_code": code})
+    if result.deleted_count == 0:
+        return jsonify({"ok": False, "error": f"Sector '{code}' not found"}), 404
+
+    # Also delete dependent zones, valves, etc. for this sector
+    revision = repository.new_revision(pid, "03_sectors_delete", f"Delete {code}")
+    db.zones.delete_many({"project_id": pid, "sector_code": code})
+    db.valves.delete_many({"project_id": pid, "sector_code": code})
+
+    return jsonify({"ok": True, "deleted": code})
+
+
+@bp.route("/sectors/geojson")
+def sectors_geojson():
+    """Return all sectors as GeoJSON for map display."""
+    pid = session.get("project_id", "")
+    if not pid:
+        return jsonify({"type": "FeatureCollection", "features": []})
+
+    features = []
+    for s in queries.get_sectors(pid):
+        geom = s.get("geom")
+        if not geom:
+            continue
+        features.append({
+            "type": "Feature",
+            "properties": {
+                "code": s.get("sector_code") or s["name"],
+                "name": s["name"],
+                "area_m2": s.get("area_m2", 0),
+            },
+            "geometry": geom,
+        })
+    return jsonify({"type": "FeatureCollection", "features": features})
+
+
+@bp.route("/sectors/<code>/geojson")
+def sector_geojson(code: str):
+    """Return a single sector as GeoJSON."""
+    pid = session.get("project_id", "")
+    if not pid:
+        return jsonify({"type": "FeatureCollection", "features": []})
+
+    db = get_db()
+    s = db.sectors.find_one({"project_id": pid, "sector_code": code})
+    if not s:
+        return jsonify({"type": "FeatureCollection", "features": []})
+
+    geom = s.get("geom")
+    if not geom:
+        return jsonify({"type": "FeatureCollection", "features": []})
+
+    return jsonify({
+        "type": "Feature",
+        "properties": {
+            "code": s.get("sector_code") or s["name"],
+            "name": s["name"],
+            "area_m2": s.get("area_m2", 0),
+        },
+        "geometry": geom,
     })
 
 

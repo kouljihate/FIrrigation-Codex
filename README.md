@@ -51,7 +51,7 @@ LOG_LEVEL=INFO
 python run.py
 ```
 
-Open http://127.0.0.1:5000
+Open http://127.0.0.1:5001
 
 ## Project Structure
 

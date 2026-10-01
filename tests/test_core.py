@@ -12,6 +12,8 @@ from core.driplines import dripline_from_row
 from core.geometry import clean_polygon, fall_direction, inward_offset
 from routes.geometry import _ring_area_m2
 from core.piping import direct_or_detour
+from routes.field import _projection
+from routes.project import _ring_area_m2
 
 
 class TestRingArea:
@@ -42,6 +44,17 @@ class TestRingArea:
         area = _ring_area_m2(ring)
         expected = 111.32 * 111.32  # ≈ 12392 m²
         assert abs(area - expected) / expected < 0.05
+
+    def test_import_area_uses_square_metres_at_mid_latitude(self):
+        ring = [
+            [2.0, 48.0],
+            [2.001, 48.0],
+            [2.001, 48.001],
+            [2.0, 48.001],
+            [2.0, 48.0],
+        ]
+        area = _ring_area_m2(ring)
+        assert 8_000 < area < 9_000
 
 
 class TestRows:
@@ -115,6 +128,20 @@ class TestDriplines:
         assert dl["length_m"] == 100.0
         assert dl["emitter_count"] == 201  # 100/0.5 + 1
         assert dl["geometry"] == [start, end]
+
+    def test_wgs84_row_length_is_converted_before_spacing(self):
+        start = (2.0, 48.0)
+        end = (2.001, 48.0)
+        to_local, _ = _projection([start, end])
+        start_m = to_local(*start)
+        end_m = to_local(*end)
+
+        dripline = dripline_from_row(start_m, end_m, emitter_spacing_m=0.5)
+        trees = place_trees_on_row(start_m, end_m, spacing_m=10)
+
+        assert 70 < dripline["length_m"] < 80
+        assert 140 < dripline["emitter_count"] < 170
+        assert 7 <= len(trees) <= 9
 
 
 class TestGeometry:

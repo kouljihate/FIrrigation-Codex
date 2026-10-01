@@ -21,8 +21,8 @@ def geojson():
     pid = session.get("project_id", "farm_v1")
     db = get_db()
     features = []
-    for coll, gfield in [("property", "geom"), ("sectors", "geom"),
-                         ("zones", "geom"), ("pipes", "geom"),
+    for coll, gfield in [("property", "geom"), ("basins", "geom"), ("water_points", "location"),
+                         ("sectors", "geom"), ("zones", "geom"), ("pipes", "geom"),
                          ("rows", "geom"), ("valves", "location"),
                          ("trees", "location"), ("driplines", "geom"),
                          ("manifolds", "geom")]:
@@ -37,6 +37,8 @@ def geojson():
                     "collection": coll,
                     "diameter_mm": d.get("diameter_mm"),
                     "species": d.get("species"),
+                    "elev_m": d.get("elev_m"),
+                    "depth_m": d.get("depth_m"),
                 },
                 "geometry": geom,
             })

@@ -86,9 +86,10 @@ def _build_mainline(project_id: str, offset: float, diameter: int) -> None:
         path_ll = [list(to_lonlat(x, y)) for x, y in path]
 
         length = sum(
-            math.hypot(path_ll[i+1][0] - path_ll[i][0],
-                       path_ll[i+1][1] - path_ll[i][1]) * 111000.0 * 0.85
-            for i in range(len(path_ll) - 1))
+            math.hypot(path[i + 1][0] - path[i][0],
+                       path[i + 1][1] - path[i][1])
+            for i in range(len(path) - 1)
+        )
 
         name = f"MAIN-BASIN-{mv_name}"
         repository.upsert("pipes",
@@ -155,9 +156,10 @@ def _build_submains(project_id: str, offset: float, diameter: int) -> None:
         path_ll = [list(to_lonlat(x, y)) for x, y in path]
 
         length = sum(
-            math.hypot(path_ll[i+1][0] - path_ll[i][0],
-                       path_ll[i+1][1] - path_ll[i][1]) * 111000.0 * 0.85
-            for i in range(len(path_ll) - 1))
+            math.hypot(path[i + 1][0] - path[i][0],
+                       path[i + 1][1] - path[i][1])
+            for i in range(len(path) - 1)
+        )
 
         name = f"{mv_name}-{zv['name']}"
         repository.upsert("pipes",
@@ -211,9 +213,11 @@ def _build_manifolds(project_id: str) -> None:
             continue
         starts_sorted = sorted(starts, key=lambda p: p[0])
         manifold_ll = [list(starts_sorted[0]), list(starts_sorted[-1])]
+        to_local, _ = _projection(z["geom"]["coordinates"][0])
+        start_m = to_local(*starts_sorted[0])
+        end_m = to_local(*starts_sorted[-1])
         name = f"MANIFOLD {z['name']}"
-        length = math.hypot(manifold_ll[1][0] - manifold_ll[0][0],
-                            manifold_ll[1][1] - manifold_ll[0][1]) * 111000.0 * 0.85
+        length = math.hypot(end_m[0] - start_m[0], end_m[1] - start_m[1])
         repository.upsert("manifolds",
             {"project_id": project_id, "name": name},
             {"project_id": project_id, "name": name,

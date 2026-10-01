@@ -32,8 +32,21 @@
     <form method="post" class="d-inline">
       <button name="action" value="wipe_rows_trees" class="btn btn-outline-warning">Wipe rows + trees</button>
     </form>
-    <form method="post" class="d-inline" onsubmit="return confirm('Delete EVERYTHING for this project?');">
-      <button name="action" value="wipe_all" class="btn btn-outline-danger">Wipe everything</button>
+    <form method="post" class="d-inline">
+      <button type="button"
+              name="action" value="wipe_all"
+              class="btn btn-outline-danger"
+              data-confirm
+              data-confirm-method="POST"
+              data-confirm-en="Delete EVERYTHING for this project? This cannot be undone."
+              data-confirm-ar="حذف كل شيء في هذا المشروع؟ لا يمكن التراجع."
+              data-confirm-title-en="Wipe project"
+              data-confirm-title-ar="مسح المشروع"
+              data-confirm-ok-en="Wipe everything"
+              data-confirm-ok-ar="مسح الكل"
+              data-confirm-danger>
+        Wipe everything / مسح الكل
+      </button>
     </form>
   </div>
 </div>

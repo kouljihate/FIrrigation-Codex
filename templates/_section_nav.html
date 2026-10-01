@@ -15,9 +15,11 @@
   <ul class="section-nav-list">
     {% for href, label_en, label_ar, children in sections %}
       {% set active = request.endpoint in children or request.endpoint == href %}
+      {% set no_project = project_id == '(none)' or project_id == '' %}
       <li>
         <a href="{{ url_for(href) }}"
-           class="section-nav-btn {% if active %}active{% endif %}">
+           class="section-nav-btn {% if active %}active{% endif %} {% if no_project %}disabled{% endif %}"
+           {% if no_project %}tabindex="-1" aria-disabled="true"{% endif %}>
           <span class="ar">{{ label_ar }}</span>
           <span class="en">{{ label_en }}</span>
         </a>
@@ -26,9 +28,18 @@
   </ul>
 </nav>
 
-{% if request.endpoint in ['geometry.sectors', 'geometry.zones', 'geometry.valves'] %}
+<style>
+  .section-nav-btn.disabled {
+    pointer-events: none;
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+</style>
+
+{% if request.endpoint in ['geometry.sectors', 'geometry.sectors_enhanced', 'geometry.zones', 'geometry.valves'] %}
 <ul class="nav nav-tabs pt-2">
   <li class="nav-item"><a class="nav-link bi {% if request.endpoint=='geometry.sectors' %}active{% endif %}" href="{{ url_for('geometry.sectors') }}"><span class="ar">القطاعات</span><span class="en">Sectors</span></a></li>
+  <li class="nav-item"><a class="nav-link bi {% if request.endpoint=='geometry.sectors_enhanced' %}active{% endif %}" href="{{ url_for('geometry.sectors_enhanced') }}"><span class="ar">القطاعات المحسنة</span><span class="en">Sectors+Map</span></a></li>
   <li class="nav-item"><a class="nav-link bi {% if request.endpoint=='geometry.zones' %}active{% endif %}" href="{{ url_for('geometry.zones') }}"><span class="ar">المناطق</span><span class="en">Zones</span></a></li>
   <li class="nav-item"><a class="nav-link bi {% if request.endpoint=='geometry.valves' %}active{% endif %}" href="{{ url_for('geometry.valves') }}"><span class="ar">الصمامات</span><span class="en">Valves</span></a></li>
 </ul>

@@ -1,0 +1,1477 @@
+{% extends "base.html" %}
+{% block head %}
+<style>
+  .sectors-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 0.75rem;
+    height: calc(100vh - 140px);
+    min-height: 600px;
+  }
+
+  @media (max-width: 1200px) {
+    .sectors-layout {
+      grid-template-columns: 1fr;
+      height: auto;
+    }
+    .map-panel { height: 550px; }
+    .side-panel { max-height: 500px; overflow-y: auto; }
+  }
+
+  .map-panel {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    grid-column: 1;
+  }
+
+  .side-panel {
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    grid-column: 2;
+  }
+
+  .panel-header {
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid #e3e6ea;
+    background: #f0f3f6;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  #map {
+    flex: 1;
+    min-height: 400px;
+  }
+
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.75rem;
+  }
+
+  .sector-code {
+    font-weight: 700;
+    color: #2D6A4F;
+    font-size: 0.9rem;
+    white-space: nowrap;
+  }
+
+  .coords-box {
+    width: 100%;
+    min-height: 120px;
+    max-height: 180px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.7rem;
+    line-height: 1.35;
+    border: 1px solid #cfe6dd;
+    border-radius: 8px;
+    padding: 0.5rem 0.6rem;
+    background: #fbfffd;
+    resize: vertical;
+    direction: ltr;
+    text-align: left;
+    box-sizing: border-box;
+  }
+  .coords-box:focus {
+    outline: none;
+    border-color: #2D6A4F;
+    box-shadow: 0 0 0 3px rgba(45,106,79,0.15);
+  }
+  .coords-box.syncing {
+    border-color: #ffc107;
+    background: #fffde7;
+  }
+
+  .metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .metric-pill {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.4rem;
+    background: #f1f8f5;
+    border: 1px solid #cfe6dd;
+    border-radius: 8px;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.72rem;
+  }
+  .metric-pill .label {
+    font-size: 0.62rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #6c757d;
+  }
+  .metric-pill .value {
+    font-weight: 700;
+    color: #2D6A4F;
+    font-family: ui-monospace, monospace;
+  }
+
+  .row-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .row-actions button { white-space: nowrap; font-size: 0.7rem; padding: 0.3rem 0.55rem; }
+
+  .save-msg {
+    font-size: 0.65rem;
+    margin-top: 0.2rem;
+    min-height: 1em;
+  }
+  .save-msg.ok  { color: #198754; }
+  .save-msg.err { color: #dc3545; }
+  .save-msg.warn { color: #fd7e14; }
+
+  .empty-state {
+    padding: 2rem;
+    text-align: center;
+    background: #f8f9fa;
+    border-radius: 12px;
+    color: #6c757d;
+    flex: 1;
+  }
+
+  .add-sector-form {
+    padding: 0.75rem;
+    border-top: 1px solid #e3e6ea;
+    background: #fafdfb;
+  }
+  .add-sector-form .form-label { font-size: 0.75rem; font-weight: 600; color: #2D6A4F; }
+  .add-sector-form .coords-box { min-height: 90px; }
+  .add-sector-form .form-text { font-size: 0.65rem; color: #6c757d; }
+
+  .map-toolbar {
+    display: flex;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+  }
+  .map-toolbar .btn { font-size: 0.65rem; padding: 0.25rem 0.5rem; }
+
+  .selected-badge {
+    display: inline-block;
+    padding: 0.12rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    background: #e8f5e9;
+    color: #2D6A4F;
+  }
+
+  .legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.65rem;
+    margin-right: 0.6rem;
+    color: #495057;
+  }
+  .legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,0.15);
+  }
+
+  .leaflet-pm-toolbar { z-index: 1000 !important; }
+
+  .sector-row { border-bottom: 1px solid #eef2ef; padding: 0.5rem 0; }
+  .sector-row:last-child { border-bottom: none; }
+  .sector-row-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; }
+  .sector-row-expanded { animation: slideDown 0.15s ease; }
+  @keyframes slideDown { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 500px; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<h1 class="bi mb-3">
+  <span class="en">Sector Management</span>
+  <span class="ar">إدارة القطاعات</span>
+</h1>
+
+<div class="sectors-layout">
+  <!-- MAP PANEL (80%) -->
+  <div class="map-panel">
+    <div class="panel-header">
+      <h5 class="mb-0 bi">
+        <span class="en">Map Editor</span>
+        <span class="ar">محرر الخريطة</span>
+      </h5>
+      <div class="map-toolbar">
+        <button id="btn-draw-polygon" class="btn btn-outline-success btn-sm" type="button" title="Draw new polygon">
+          <span class="en">⬟ Polygon</span><span class="ar">مضلع</span>
+        </button>
+        <button id="btn-draw-polyline" class="btn btn-outline-info btn-sm" type="button" title="Draw new line">
+          <span class="en">〰 Line</span><span class="ar">خط</span>
+        </button>
+        <button id="btn-draw-marker" class="btn btn-outline-warning btn-sm" type="button" title="Add marker">
+          <span class="en">📍 Marker</span><span class="ar">علامة</span>
+        </button>
+        <button id="btn-draw-circle" class="btn btn-outline-secondary btn-sm" type="button" title="Draw circle">
+          <span class="en">⭘ Circle</span><span class="ar">دائرة</span>
+        </button>
+        <button id="btn-edit-mode" class="btn btn-outline-primary btn-sm" type="button" title="Edit selected layer">
+          <span class="en">✏️ Edit</span><span class="ar">تعديل</span>
+        </button>
+        <button id="btn-delete-mode" class="btn btn-outline-danger btn-sm" type="button" title="Delete selected layer">
+          <span class="en">🗑️ Delete</span><span class="ar">حذف</span>
+        </button>
+        <button id="btn-cut-polygon" class="btn btn-outline-dark btn-sm" type="button" title="Cut polygon">
+          <span class="en">✂️ Cut</span><span class="ar">قص</span>
+        </button>
+        <button id="btn-cancel-edit" class="btn btn-outline-secondary btn-sm d-none" type="button" title="Cancel editing">
+          <span class="en">✖ Cancel</span><span class="ar">إلغاء</span>
+        </button>
+        <button id="btn-fit-all" class="btn btn-outline-info btn-sm" type="button" title="Fit all layers">
+          <span class="en">📍 Fit All</span><span class="ar">ملاءمة</span>
+        </button>
+        <button id="btn-layers-toggle" class="btn btn-outline-secondary btn-sm" type="button" title="Toggle layers">
+          <span class="en">🗂 Layers</span><span class="ar">طبقات</span>
+        </button>
+      </div>
+    </div>
+    <div id="map"></div>
+    
+    <!-- Layers Sidebar -->
+    <div id="layers-sidebar" class="d-none" style="position: absolute; top: 0; right: 0; bottom: 0; width: 280px; background: #fff; border-left: 1px solid #e3e6ea; z-index: 1000; overflow-y: auto; display: flex; flex-direction: column;">
+      <div class="panel-header" style="border-radius: 0;">
+        <h6 class="mb-0 bi">
+          <span class="en">Layer Controls</span>
+          <span class="ar">تحكم الطبقات</span>
+        </h6>
+        <button id="btn-close-layers" class="btn btn-sm btn-outline-secondary p-0" style="width: 28px; height: 28px;">✕</button>
+      </div>
+      <div class="panel-body" style="padding: 0.75rem;">
+        <div id="layer-toggles"></div>
+        <hr>
+        <div class="mb-2">
+          <label class="form-label form-label-sm"><span class="en">Basemap</span><span class="ar">خريطة الأساس</span></label>
+          <select id="basemap-select" class="form-select form-select-sm">
+            <option value="osm">OpenStreetMap</option>
+            <option value="satellite">Satellite (Esri)</option>
+            <option value="topo">Topographic</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-header" style="border-top: 1px solid #e3e6ea; border-bottom: none; background: #fafdfb; font-size: 0.65rem; padding: 0.4rem 0.85rem;">
+      <div class="legend-item">
+        <span class="legend-color" style="background: #000000;"></span>
+        <span>Property</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #4caf50;"></span>
+        <span>Basins</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #2196f3;"></span>
+        <span>Water Pts</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #00bcd4;"></span>
+        <span>Sectors</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #3f51b5;"></span>
+        <span>Zones</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #ff0000;"></span>
+        <span>Pipes</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #e91e63;"></span>
+        <span>Valves</span>
+      </div>
+      <div class="legend-item">
+        <span class="legend-color" style="background: #00c853;"></span>
+        <span>Rows</span>
+      </div>
+      <div id="selected-sector-info" class="ms-auto selected-badge d-none">
+        <span class="en">Editing: </span><span class="ar">جاري التحرير: </span><span id="selected-code"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDE PANEL (20%) - Sector Form/Inputs -->
+  <div class="side-panel">
+    <div class="panel-header d-flex justify-content-between align-items-center">
+      <h5 class="mb-0 bi">
+        <span class="en">Sectors</span>
+        <span class="ar">القطاعات</span>
+      </h5>
+      <span class="badge bg-success" id="sector-count">{{ sectors|length }}</span>
+    </div>
+
+    <div class="panel-body">
+      {% if sectors %}
+      <div id="sectors-list">
+        {% for s in sectors %}
+        <div class="sector-row" data-code="{{ s.code }}">
+          <div class="sector-row-header">
+            <span class="sector-code">{{ s.code }}</span>
+            <button class="btn btn-sm btn-outline-secondary p-0" type="button" data-toggle="collapse" data-target="#details-{{ s.code }}" aria-expanded="false">
+              <span class="en">▼</span><span class="ar">▼</span>
+            </button>
+          </div>
+          <div id="details-{{ s.code }}" class="collapse sector-row-expanded">
+            <textarea class="coords-box js-coords" spellcheck="false" data-code="{{ s.code }}">{{ s.coords_text }}</textarea>
+            <div class="metrics mt-2">
+              <div class="metric-pill"><span class="label"><span class="en">Verts</span><span class="ar">رؤوس</span></span><span class="value js-verts">{{ s.vertices }}</span></div>
+              <div class="metric-pill"><span class="label">m²</span><span class="value js-area-m2">{{ "%.1f"|format(s.area_m2) }}</span></div>
+              <div class="metric-pill"><span class="label">ha</span><span class="value js-area-ha">{{ "%.4f"|format(s.area_m2 / 10000) }}</span></div>
+            </div>
+            <div class="row-actions mt-2">
+              <button class="btn btn-sm btn-success js-save" type="button" data-code="{{ s.code }}"><span class="en">💾 Save</span><span class="ar">حفظ</span></button>
+              <button class="btn btn-sm btn-outline-primary js-edit-map" type="button" data-code="{{ s.code }}"><span class="en">✏️ Edit on Map</span><span class="ar">تعديل على الخريطة</span></button>
+              <button class="btn btn-sm btn-outline-danger js-delete" type="button" data-code="{{ s.code }}"><span class="en">🗑️ Delete</span><span class="ar">حذف</span></button>
+              <div class="save-msg js-msg"></div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state bi">
+        <div>
+          <div class="en mb-2">No sectors found.</div>
+          <div class="ar mb-3">لا توجد قطاعات.</div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- ADD SECTOR FORM -->
+      <div class="add-sector-form">
+        <h6 class="mb-3 bi">
+          <span class="en">Add New Sector</span>
+          <span class="ar">إضافة قطاع جديد</span>
+        </h6>
+        <div class="row g-2">
+          <div class="col-12">
+            <label class="form-label"><span class="en">Sector Code</span><span class="ar">رمز القطاع</span></label>
+            <input type="text" class="form-control form-control-sm" id="new-sector-code" placeholder="e.g., SEC-01" maxlength="20">
+          </div>
+          <div class="col-12">
+            <label class="form-label"><span class="en">Name</span><span class="ar">الاسم</span></label>
+            <input type="text" class="form-control form-control-sm" id="new-sector-name" placeholder="Optional display name">
+          </div>
+          <div class="col-12">
+            <label class="form-label"><span class="en">Coordinates (lon,lat per line)</span><span class="ar">الإحداثيات</span></label>
+            <textarea class="coords-box" id="new-sector-coords" spellcheck="false" rows="4" placeholder="33.123456,-4.123456&#10;33.123500,-4.123400&#10;33.123550,-4.123500"></textarea>
+            <div class="form-text">
+              <span class="en">One coordinate pair per line. Min 3 points. Or use "Draw" on map.</span>
+              <span class="ar">زوج إحداثيات لكل سطر. 3 نقاط على الأقل. أو استخدم "رسم" على الخريطة.</span>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="metrics" style="flex-direction: row; justify-content: flex-start; flex-wrap: wrap;">
+              <div class="metric-pill"><span class="label">Verts</span><span class="value js-new-verts">0</span></div>
+              <div class="metric-pill"><span class="label">m²</span><span class="value js-new-area-m2">0.0</span></div>
+              <div class="metric-pill"><span class="label">ha</span><span class="value js-new-area-ha">0.0000</span></div>
+            </div>
+          </div>
+          <div class="col-12">
+            <button class="btn btn-success btn-sm" id="btn-add-sector" type="button">
+              <span class="en">➕ Add Sector</span><span class="ar">إضافة القطاع</span>
+            </button>
+            <button class="btn btn-outline-secondary btn-sm ms-2" id="btn-clear-new" type="button">
+              <span class="en">Clear</span><span class="ar">مسح</span>
+            </button>
+            <span class="save-msg ms-2" id="new-sector-msg"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if sectors %}
+<link rel="stylesheet" href="https://unpkg.com/leaflet.pm@0.22.1/dist/leaflet.pm.css" />
+<script src="https://unpkg.com/leaflet.pm@0.22.1/dist/leaflet.pm.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // CONSTANTS & CONFIG
+  // ============================================================
+  const R = 6378137.0;
+  const M_PER_DEG_LAT = Math.PI * R / 180.0;
+  const SECTOR_COLOR = "#00bcd4";
+  const SECTOR_COLOR_ACTIVE = "#ff9800";
+  const SECTOR_COLOR_EDIT = "#e91e63";
+
+  // ============================================================
+  // MAP INITIALIZATION
+  // ============================================================
+  const map = L.map("map", {
+    center: [33.8455, -4.5860],
+    zoom: 15,
+    pmIgnore: false
+  });
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 20,
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  // Basemap layers
+  const basemaps = {
+    osm: L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 20,
+      attribution: '© OpenStreetMap'
+    }),
+    satellite: L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+      maxZoom: 20,
+      attribution: '© Esri'
+    }),
+    topo: L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+      maxZoom: 17,
+      attribution: '© OpenTopoMap'
+    })
+  };
+  basemaps.osm.addTo(map);
+
+  // Enable Leaflet.PM globally (we'll control via our custom toolbar)
+  map.pm.addControls({
+    position: "topleft",
+    drawMarker: false,
+    drawCircleMarker: false,
+    drawCircle: false,
+    drawRectangle: false,
+    drawPolyline: false,
+    drawPolygon: false,
+    editMode: false,
+    dragMode: false,
+    cutPolygon: false,
+    removalMode: false,
+    oneBlock: true
+  });
+
+  // Layer groups for each collection
+  const layerGroups = {
+    property:  L.layerGroup().addTo(map),
+    sectors:   L.layerGroup().addTo(map),
+    basins:    L.layerGroup().addTo(map),
+    water_points: L.layerGroup().addTo(map),
+    zones:     L.layerGroup().addTo(map),
+    pipes:     L.layerGroup().addTo(map),
+    valves:    L.layerGroup().addTo(map),
+    rows:      L.layerGroup(),
+    trees:     L.layerGroup(),
+    driplines: L.layerGroup(),
+    manifolds: L.layerGroup(),
+  };
+
+  // Colors per collection
+  const colors = {
+    property:     "#000000",
+    sectors:      "#00bcd4",
+    basins:       "#4caf50",
+    water_points: "#2196f3",
+    zones:        "#3f51b5",
+    pipes:        "#ff0000",
+    valves:       "#e91e63",
+    rows:         "#00c853",
+    trees:        "#2e7d32",
+    driplines:    "#00897b",
+    manifolds:    "#ff9800",
+  };
+
+  // Track sectors on map (for editing)
+  const sectorPolygons = new Map(); // code -> L.Polygon
+  let selectedSectorCode = null;
+  let isDrawingNew = false;
+  let drawType = "Polygon"; // Polygon, Polyline, Marker, Circle
+  let isEditingMode = false;
+  let isDeletingMode = false;
+  let isCuttingMode = false;
+  let suppressSync = false; // prevent circular updates
+
+  // ============================================================
+  // HELPER FUNCTIONS
+  // ============================================================
+
+  function parseCoords(text) {
+    const out = [];
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      const parts = line.split(",").map(s => s.trim());
+      if (parts.length < 2) continue;
+      const lon = parseFloat(parts[0]);
+      const lat = parseFloat(parts[1]);
+      if (!isFinite(lon) || !isFinite(lat)) continue;
+      out.push([lon, lat]);
+    }
+    return out;
+  }
+
+  function ringToLatLngs(ring) {
+    return ring.map(([lon, lat]) => [lat, lon]);
+  }
+
+  function latLngsToRing(latlngs) {
+    return latlngs.map(([lat, lon]) => [lon, lat]);
+  }
+
+  function ringAreaM2(ring) {
+    if (ring.length < 3) return 0;
+    const r = ring.slice();
+    if (r[0][0] !== r[r.length - 1][0] || r[0][1] !== r[r.length - 1][1]) {
+      r.push(r[0]);
+    }
+    let latSum = 0;
+    for (const p of r) latSum += p[1];
+    const lat0 = latSum / r.length;
+    const mPerDegLon = M_PER_DEG_LAT * Math.cos(lat0 * Math.PI / 180);
+
+    let s = 0;
+    for (let i = 0; i < r.length - 1; i++) {
+      const x1 = r[i][0] * mPerDegLon, y1 = r[i][1] * M_PER_DEG_LAT;
+      const x2 = r[i + 1][0] * mPerDegLon, y2 = r[i + 1][1] * M_PER_DEG_LAT;
+      s += x1 * y2 - x2 * y1;
+    }
+    return Math.abs(s) / 2;
+  }
+
+  function formatCoordsText(ring) {
+    // Remove closing duplicate if present
+    const ringToUse = (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1])
+      ? ring.slice(0, -1) : ring;
+    return ringToUse.map(([lon, lat]) => `${lon.toFixed(7)},${lat.toFixed(7)}`).join("\n");
+  }
+
+  function countVertices(ring) {
+    if (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]) {
+      return ring.length - 1;
+    }
+    return ring.length;
+  }
+
+  function updateMetricsForRing(ring, vertsEl, areaM2El, areaHaEl) {
+    const verts = countVertices(ring);
+    const area = ringAreaM2(ring);
+    if (vertsEl) vertsEl.textContent = verts;
+    if (areaM2El) areaM2El.textContent = area.toFixed(1);
+    if (areaHaEl) areaHaEl.textContent = (area / 10000).toFixed(4);
+    return { verts, area };
+  }
+
+  function setMsg(el, text, type) {
+    el.textContent = text;
+    el.classList.remove("ok", "err", "warn");
+    if (type) el.classList.add(type);
+    if (type === "ok") {
+      setTimeout(() => { if (el.textContent === text) el.textContent = ""; }, 3000);
+    }
+  }
+
+  // ============================================================
+  // MAP POLYGON MANAGEMENT
+  // ============================================================
+
+  function createSectorPolygon(code, ring, options = {}) {
+    const latlngs = ringToLatLngs(ring);
+    const poly = L.polygon(latlngs, {
+      color: options.color || SECTOR_COLOR,
+      weight: 2,
+      fillColor: options.fillColor || SECTOR_COLOR,
+      fillOpacity: options.fillOpacity || 0.15,
+      pmIgnore: false
+    });
+
+    poly.sectorCode = code;
+    poly.bindTooltip(code, { permanent: false, direction: "center", className: "sector-tooltip" });
+
+    // PM events
+    poly.on("pm:edit", (e) => onPolygonEdited(code, e));
+    poly.on("pm:remove", (e) => onPolygonRemoved(code, e));
+    poly.on("pm:dragstart", () => { suppressSync = true; });
+    poly.on("pm:dragend", (e) => onPolygonDragEnd(code, e));
+
+    // Click to select
+    poly.on("click", (e) => {
+      if (isDeletingMode) {
+        deleteSectorFromMap(code);
+      } else if (!isDrawingNew) {
+        selectSector(code);
+      }
+    });
+
+    layerGroups.sectors.addLayer(poly);
+    sectorPolygons.set(code, poly);
+    return poly;
+  }
+
+  // Create layer toggles UI
+  function createLayerToggles() {
+    const container = document.getElementById("layer-toggles");
+    if (!container) return;
+
+    const layerOrder = [
+      { key: "property", label: { en: "Property Boundary", ar: "حدود العقار" }, defaultOn: true },
+      { key: "basins", label: { en: "Basins", ar: "أحواض" }, defaultOn: true },
+      { key: "water_points", label: { en: "Water Points", ar: "نقاط المياه" }, defaultOn: true },
+      { key: "sectors", label: { en: "Sectors", ar: "قطاعات" }, defaultOn: true },
+      { key: "zones", label: { en: "Zones", ar: "مناطق" }, defaultOn: true },
+      { key: "pipes", label: { en: "Pipes", ar: "أنابيب" }, defaultOn: true },
+      { key: "valves", label: { en: "Valves", ar: "صمامات" }, defaultOn: true },
+      { key: "rows", label: { en: "Rows", ar: "صفوف" }, defaultOn: false },
+      { key: "trees", label: { en: "Trees", ar: "أشجار" }, defaultOn: false },
+      { key: "driplines", label: { en: "Driplines", ar: "خطوط تنقيط" }, defaultOn: false },
+      { key: "manifolds", label: { en: "Manifolds", ar: "مشعبات" }, defaultOn: false },
+    ];
+
+    layerOrder.forEach(({ key, label, defaultOn }) => {
+      const group = layerGroups[key];
+      const checked = defaultOn && map.hasLayer(group);
+      const color = colors[key] || "#888";
+
+      const wrapper = document.createElement("div");
+      wrapper.className = "form-check mb-1";
+      wrapper.innerHTML = `
+        <input class="form-check-input" type="checkbox" id="layer-toggle-${key}" ${checked ? "checked" : ""} data-layer="${key}">
+        <label class="form-check-label d-flex align-items-center gap-2" for="layer-toggle-${key}" style="cursor: pointer; font-size: 0.75rem;">
+          <span class="legend-color" style="background: ${color};"></span>
+          <span class="bi"><span class="en">${label.en}</span><span class="ar">${label.ar}</span></span>
+        </label>
+      `;
+      container.appendChild(wrapper);
+      wrapper.querySelector("input").addEventListener("change", (e) => {
+        if (e.target.checked) map.addLayer(group);
+        else map.removeLayer(group);
+      });
+    });
+  }
+
+  // Initialize layer toggles
+  createLayerToggles();
+
+  // Toggle layers sidebar
+  document.getElementById("btn-layers-toggle").addEventListener("click", () => {
+    const sidebar = document.getElementById("layers-sidebar");
+    const isVisible = sidebar.style.display === "flex";
+    sidebar.style.display = isVisible ? "none" : "flex";
+  });
+
+  function onPolygonEdited(code, e) {
+    if (suppressSync) return;
+    const layer = e.layer || e.target;
+    const latlngs = layer.getLatLngs()[0];
+    const ring = latLngsToRing(latlngs);
+    // Ensure closed ring
+    if (ring[0][0] !== ring[ring.length - 1][0] || ring[0][1] !== ring[ring.length - 1][1]) {
+      ring.push(ring[0]);
+    }
+    updateTextareaFromRing(code, ring);
+    updateMetricsForRow(code, ring);
+  }
+
+  function onPolygonDragEnd(code, e) {
+    suppressSync = false;
+    const layer = e.layer || e.target;
+    const latlngs = layer.getLatLngs()[0];
+    const ring = latLngsToRing(latlngs);
+    if (ring[0][0] !== ring[ring.length - 1][0] || ring[0][1] !== ring[ring.length - 1][1]) {
+      ring.push(ring[0]);
+    }
+    updateTextareaFromRing(code, ring);
+    updateMetricsForRow(code, ring);
+    // Auto-save after drag
+    saveSector(code);
+  }
+
+  function onPolygonRemoved(code, e) {
+    if (!confirm(`Delete sector ${code}?`)) {
+      // Re-add the polygon - need to fetch from server
+      reloadSector(code);
+      return;
+    }
+    deleteSectorFromMap(code);
+  }
+
+  function updatePolygonGeometry(code, ring) {
+    const poly = sectorPolygons.get(code);
+    if (!poly) return;
+    const latlngs = ringToLatLngs(ring);
+    poly.setLatLngs(latlngs);
+    // Update tooltip position
+    poly.unbindTooltip();
+    poly.bindTooltip(code, { permanent: false, direction: "center", className: "sector-tooltip" });
+  }
+
+  function setPolygonStyle(code, style) {
+    const poly = sectorPolygons.get(code);
+    if (poly) poly.setStyle(style);
+  }
+
+  function removePolygonFromMap(code) {
+    const poly = sectorPolygons.get(code);
+    if (poly) {
+      layerGroups.sectors.removeLayer(poly);
+      sectorPolygons.delete(code);
+    }
+  }
+
+  function clearAllPolygons() {
+    layerGroups.sectors.clearLayers();
+    sectorPolygons.clear();
+  }
+
+  function fitToSectors() {
+    const bounds = [];
+    // Include all visible layers
+    Object.values(layerGroups).forEach(group => {
+      if (map.hasLayer(group)) {
+        group.eachLayer(layer => {
+          if (layer.getBounds) bounds.push(layer.getBounds());
+        });
+      }
+    });
+    if (bounds.length > 0) {
+      const combined = bounds[0];
+      for (let i = 1; i < bounds.length; i++) combined.extend(bounds[i]);
+      map.fitBounds(combined, { padding: [20, 20] });
+    } else {
+      fetch("{{ url_for('api.bounds') }}")
+        .then(r => r.json())
+        .then(d => { if (d.bounds) map.fitBounds(d.bounds, { padding: [20, 20] }); });
+    }
+  }
+
+  // ============================================================
+  // TEXTAREA ↔ MAP SYNC
+  // ============================================================
+
+  function updateTextareaFromRing(code, ring) {
+    const ta = document.querySelector(`.js-coords[data-code="${code}"]`);
+    if (!ta) return;
+    if (suppressSync) return;
+    const text = formatCoordsText(ring);
+    if (ta.value !== text) {
+      ta.classList.add("syncing");
+      ta.value = text;
+      setTimeout(() => ta.classList.remove("syncing"), 300);
+    }
+  }
+
+  function updateMetricsForRow(code, ring) {
+    const row = document.querySelector(`tr[data-code="${code}"]`);
+    if (!row) return;
+    updateMetricsForRing(ring,
+      row.querySelector(".js-verts"),
+      row.querySelector(".js-area-m2"),
+      row.querySelector(".js-area-ha")
+    );
+  }
+
+  function getRingFromTextarea(code) {
+    const ta = document.querySelector(`.js-coords[data-code="${code}"]`);
+    if (!ta) return null;
+    const ring = parseCoords(ta.value);
+    if (ring.length < 3) return null;
+    // Auto-close
+    if (ring[0][0] !== ring[ring.length - 1][0] || ring[0][1] !== ring[ring.length - 1][1]) {
+      ring.push(ring[0]);
+    }
+    return ring;
+  }
+
+  function syncTextareaToMap(code) {
+    const ring = getRingFromTextarea(code);
+    if (!ring) return false;
+    updatePolygonGeometry(code, ring);
+    updateMetricsForRow(code, ring);
+    return true;
+  }
+
+  // ============================================================
+  // SECTOR SELECTION & MODES
+  // ============================================================
+
+  function selectSector(code) {
+    // Deselect previous
+    if (selectedSectorCode && selectedSectorCode !== code) {
+      setPolygonStyle(selectedSectorCode, {
+        color: SECTOR_COLOR,
+        fillColor: SECTOR_COLOR,
+        weight: 2
+      });
+      const prevRow = document.querySelector(`tr[data-code="${selectedSectorCode}"]`);
+      if (prevRow) prevRow.classList.remove("editing");
+    }
+
+    selectedSectorCode = code;
+    setPolygonStyle(code, {
+      color: SECTOR_COLOR_EDIT,
+      fillColor: SECTOR_COLOR_EDIT,
+      weight: 3
+    });
+
+    const row = document.querySelector(`tr[data-code="${code}"]`);
+    if (row) row.classList.add("editing");
+
+    // Update UI
+    document.getElementById("selected-sector-info").classList.remove("d-none");
+    document.getElementById("selected-code").textContent = code;
+
+    // Enable edit mode on polygon
+    const poly = sectorPolygons.get(code);
+    if (poly) {
+      poly.pm.enable({ allowSelfIntersection: false, snappable: true });
+    }
+  }
+
+  function deselectSector() {
+    if (selectedSectorCode) {
+      setPolygonStyle(selectedSectorCode, {
+        color: SECTOR_COLOR,
+        fillColor: SECTOR_COLOR,
+        weight: 2
+      });
+      const row = document.querySelector(`tr[data-code="${selectedSectorCode}"]`);
+      if (row) row.classList.remove("editing");
+
+      const poly = sectorPolygons.get(selectedSectorCode);
+      if (poly) {
+        poly.pm.disable();
+      }
+
+      selectedSectorCode = null;
+      document.getElementById("selected-sector-info").classList.add("d-none");
+    }
+  }
+
+  function enableDrawMode() {
+    isDrawingNew = true;
+    isEditingMode = false;
+    isDeletingMode = false;
+    isCuttingMode = false;
+    deselectSector();
+
+    // Reset all draw buttons
+    ["btn-draw-polygon", "btn-draw-polyline", "btn-draw-marker", "btn-draw-circle"].forEach(id => {
+      document.getElementById(id).classList.remove("active");
+      document.getElementById(id).classList.add("btn-outline-" + 
+        (id === "btn-draw-polygon" ? "success" : 
+         id === "btn-draw-polyline" ? "info" : 
+         id === "btn-draw-marker" ? "warning" : "secondary"));
+    });
+
+    // Highlight active button
+    const activeBtn = "btn-draw-" + drawType.toLowerCase();
+    if (document.getElementById(activeBtn)) {
+      document.getElementById(activeBtn).classList.add("active");
+      document.getElementById(activeBtn).classList.remove("btn-outline-" + 
+        (activeBtn === "btn-draw-polygon" ? "success" : 
+         activeBtn === "btn-draw-polyline" ? "info" : 
+         activeBtn === "btn-draw-marker" ? "warning" : "secondary"));
+    }
+
+    document.getElementById("btn-edit-mode").classList.remove("active", "btn-primary");
+    document.getElementById("btn-edit-mode").classList.add("btn-outline-primary");
+    document.getElementById("btn-delete-mode").classList.remove("active", "btn-danger");
+    document.getElementById("btn-delete-mode").classList.add("btn-outline-danger");
+    document.getElementById("btn-cut-polygon").classList.remove("active", "btn-dark");
+    document.getElementById("btn-cut-polygon").classList.add("btn-outline-dark");
+    document.getElementById("btn-cancel-edit").classList.remove("d-none");
+
+    const pmOptions = {
+      allowSelfIntersection: false,
+      snappable: true,
+      cursorMarker: true
+    };
+
+    if (drawType === "Polygon") {
+      pmOptions.finishOn = "dblclick";
+      map.pm.enableDraw("Polygon", pmOptions);
+    } else if (drawType === "Polyline") {
+      pmOptions.finishOn = "dblclick";
+      map.pm.enableDraw("Polyline", pmOptions);
+    } else if (drawType === "Marker") {
+      map.pm.enableDraw("Marker", pmOptions);
+    } else if (drawType === "Circle") {
+      map.pm.enableDraw("Circle", pmOptions);
+    }
+
+    // Handle new geometry creation
+    map.once("pm:create", (e) => {
+      const layer = e.layer;
+      handleNewGeometry(layer, drawType);
+      disableDrawMode();
+    });
+  }
+
+  function disableDrawMode() {
+    isDrawingNew = false;
+    map.pm.disableDraw(drawType);
+    map.off("pm:create");
+
+    ["btn-draw-polygon", "btn-draw-polyline", "btn-draw-marker", "btn-draw-circle"].forEach(id => {
+      document.getElementById(id).classList.remove("active");
+      document.getElementById(id).classList.add("btn-outline-" + 
+        (id === "btn-draw-polygon" ? "success" : 
+         id === "btn-draw-polyline" ? "info" : 
+         id === "btn-draw-marker" ? "warning" : "secondary"));
+    });
+    document.getElementById("btn-cancel-edit").classList.add("d-none");
+  }
+
+  function handleNewGeometry(layer, type) {
+    if (type === "Polygon") {
+      const latlngs = layer.getLatLngs()[0];
+      const ring = latLngsToRing(latlngs);
+      if (ring[0][0] !== ring[ring.length - 1][0] || ring[0][1] !== ring[ring.length - 1][1]) {
+        ring.push(ring[0]);
+      }
+      document.getElementById("new-sector-coords").value = formatCoordsText(ring);
+      updateNewSectorMetrics(ring);
+      document.getElementById("new-sector-code").focus();
+    } else if (type === "Polyline") {
+      const latlngs = layer.getLatLngs();
+      const coords = latlngs.map(ll => `${ll.lng.toFixed(7)},${ll.lat.toFixed(7)}`).join("\n");
+      // Add to new sector form as line
+      document.getElementById("new-sector-coords").value = coords;
+      // Could add a separate form for lines
+    } else if (type === "Marker") {
+      const latlng = layer.getLatLng();
+      alert(`Marker added at ${latlng.lat.toFixed(7)}, ${latlng.lng.toFixed(7)}`);
+    } else if (type === "Circle") {
+      const center = layer.getLatLng();
+      const radius = layer.getRadius();
+      alert(`Circle added at ${center.lat.toFixed(7)}, ${center.lng.toFixed(7)} radius ${radius.toFixed(1)}m`);
+    }
+  }
+
+  function enableEditMode() {
+    if (!selectedSectorCode) {
+      alert("Select a sector first (click on map or use 'Edit on Map' button)");
+      return;
+    }
+    isEditingMode = true;
+    isDrawingNew = false;
+    isDeletingMode = false;
+
+    document.getElementById("btn-edit-mode").classList.add("active", "btn-primary");
+    document.getElementById("btn-edit-mode").classList.remove("btn-outline-primary");
+    document.getElementById("btn-draw-polygon").classList.remove("active", "btn-success");
+    document.getElementById("btn-draw-polygon").classList.add("btn-outline-success");
+    document.getElementById("btn-delete-mode").classList.remove("active", "btn-danger");
+    document.getElementById("btn-delete-mode").classList.add("btn-outline-danger");
+    document.getElementById("btn-cancel-edit").classList.remove("d-none");
+
+    const poly = sectorPolygons.get(selectedSectorCode);
+    if (poly) {
+      poly.pm.enable({ allowSelfIntersection: false, snappable: true });
+    }
+  }
+
+  function disableEditMode() {
+    isEditingMode = false;
+    if (selectedSectorCode) {
+      const poly = sectorPolygons.get(selectedSectorCode);
+      if (poly) poly.pm.disable();
+    }
+
+    document.getElementById("btn-edit-mode").classList.remove("active", "btn-primary");
+    document.getElementById("btn-edit-mode").classList.add("btn-outline-primary");
+    document.getElementById("btn-cancel-edit").classList.add("d-none");
+  }
+
+  function enableDeleteMode() {
+    isDeletingMode = true;
+    isDrawingNew = false;
+    isEditingMode = false;
+
+    document.getElementById("btn-delete-mode").classList.add("active", "btn-danger");
+    document.getElementById("btn-delete-mode").classList.remove("btn-outline-danger");
+    document.getElementById("btn-draw-polygon").classList.remove("active", "btn-success");
+    document.getElementById("btn-draw-polygon").classList.add("btn-outline-success");
+    document.getElementById("btn-edit-mode").classList.remove("active", "btn-primary");
+    document.getElementById("btn-edit-mode").classList.add("btn-outline-primary");
+    document.getElementById("btn-cancel-edit").classList.remove("d-none");
+  }
+
+  function disableDeleteMode() {
+    isDeletingMode = false;
+    document.getElementById("btn-delete-mode").classList.remove("active", "btn-danger");
+    document.getElementById("btn-delete-mode").classList.add("btn-outline-danger");
+    document.getElementById("btn-cancel-edit").classList.add("d-none");
+  }
+
+  function enableCutMode() {
+    isCuttingMode = true;
+    isDrawingNew = false;
+    isEditingMode = false;
+    isDeletingMode = false;
+    deselectSector();
+
+    document.getElementById("btn-cut-polygon").classList.add("active", "btn-dark");
+    document.getElementById("btn-cut-polygon").classList.remove("btn-outline-dark");
+    document.getElementById("btn-draw-polygon").classList.remove("active", "btn-success");
+    document.getElementById("btn-draw-polygon").classList.add("btn-outline-success");
+    document.getElementById("btn-edit-mode").classList.remove("active", "btn-primary");
+    document.getElementById("btn-edit-mode").classList.add("btn-outline-primary");
+    document.getElementById("btn-delete-mode").classList.remove("active", "btn-danger");
+    document.getElementById("btn-delete-mode").classList.add("btn-outline-danger");
+    document.getElementById("btn-cancel-edit").classList.remove("d-none");
+
+    map.pm.enableCut();
+  }
+
+  function disableCutMode() {
+    isCuttingMode = false;
+    map.pm.disableCut();
+    document.getElementById("btn-cut-polygon").classList.remove("active", "btn-dark");
+    document.getElementById("btn-cut-polygon").classList.add("btn-outline-dark");
+    document.getElementById("btn-cancel-edit").classList.add("d-none");
+  }
+
+  function cancelAllModes() {
+    disableDrawMode();
+    disableEditMode();
+    disableDeleteMode();
+    disableCutMode();
+    deselectSector();
+  }
+
+  // ============================================================
+  // CRUD OPERATIONS
+  // ============================================================
+
+  async function saveSector(code) {
+    const ta = document.querySelector(`.js-coords[data-code="${code}"]`);
+    if (!ta) return;
+
+    const row = document.querySelector(`.sector-row[data-code="${code}"]`);
+    const msgEl = row?.querySelector(".js-msg");
+
+    const fd = new FormData();
+    fd.append("code", code);
+    fd.append("coords", ta.value);
+
+    try {
+      const r = await fetch("{{ url_for('geometry.save_sector') }}", {
+        method: "POST",
+        body: fd,
+      });
+      const j = await r.json();
+      if (!j.ok) {
+        setMsg(msgEl, "❌ " + (j.error || "save failed"), "err");
+        return false;
+      }
+      // Update metrics from server
+      row.querySelector(".js-verts").textContent = j.vertices;
+      row.querySelector(".js-area-m2").textContent = j.area_m2.toFixed(1);
+      row.querySelector(".js-area-ha").textContent = j.area_ha.toFixed(4);
+      setMsg(msgEl, "✔ Saved", "ok");
+      return true;
+    } catch (e) {
+      setMsg(msgEl, "❌ " + e.message, "err");
+      return false;
+    }
+  }
+
+  async function addSector() {
+    const code = document.getElementById("new-sector-code").value.trim().toUpperCase();
+    const name = document.getElementById("new-sector-name").value.trim() || code;
+    const coords = document.getElementById("new-sector-coords").value.trim();
+    const msgEl = document.getElementById("new-sector-msg");
+
+    if (!code) {
+      setMsg(msgEl, "❌ Enter a sector code", "err");
+      return;
+    }
+    if (!coords) {
+      setMsg(msgEl, "❌ Enter coordinates or draw on map", "err");
+      return;
+    }
+
+    const ring = parseCoords(coords);
+    if (ring.length < 3) {
+      setMsg(msgEl, "❌ Need at least 3 points", "err");
+      return;
+    }
+
+    const fd = new FormData();
+    fd.append("code", code);
+    fd.append("coords", coords);
+
+    try {
+      const r = await fetch("{{ url_for('geometry.add_sector') }}", {
+        method: "POST",
+        body: fd,
+      });
+      const j = await r.json();
+      if (!j.ok) {
+        setMsg(msgEl, "❌ " + (j.error || "add failed"), "err");
+        return;
+      }
+      setMsg(msgEl, "✔ Sector added", "ok");
+
+      // Add to list
+      addSectorToList(j.code, coords, j.vertices, j.area_m2);
+
+      // Add to map
+      const newRing = [...ring];
+      if (newRing[0][0] !== newRing[newRing.length - 1][0] || newRing[0][1] !== newRing[newRing.length - 1][1]) {
+        newRing.push(newRing[0]);
+      }
+      createSectorPolygon(j.code, newRing);
+
+      // Clear form
+      clearNewSectorForm();
+      updateSectorCount();
+    } catch (e) {
+      setMsg(msgEl, "❌ " + e.message, "err");
+    }
+  }
+
+  async function deleteSector(code) {
+    if (!confirm(`Delete sector ${code}? This will also delete associated zones and valves.`)) return;
+
+    const row = document.querySelector(`.sector-row[data-code="${code}"]`);
+    const msgEl = row?.querySelector(".js-msg");
+
+    const fd = new FormData();
+    fd.append("code", code);
+
+    try {
+      const r = await fetch("{{ url_for('geometry.delete_sector') }}", {
+        method: "POST",
+        body: fd,
+      });
+      const j = await r.json();
+      if (!j.ok) {
+        setMsg(msgEl, "❌ " + (j.error || "delete failed"), "err");
+        return;
+      }
+      // Remove from table
+      row?.remove();
+      // Remove from map
+      removePolygonFromMap(code);
+      // Clear selection if deleted
+      if (selectedSectorCode === code) {
+        selectedSectorCode = null;
+        document.getElementById("selected-sector-info").classList.add("d-none");
+      }
+      updateSectorCount();
+    } catch (e) {
+      setMsg(msgEl, "❌ " + e.message, "err");
+    }
+  }
+
+  async function reloadSector(code) {
+    try {
+      const r = await fetch(`{{ url_for('geometry.sector_geojson', code='__CODE__') }}`.replace('__CODE__', encodeURIComponent(code)));
+      const j = await r.json();
+      if (j.geometry && j.geometry.coordinates) {
+        const ring = j.geometry.coordinates[0];
+        updatePolygonGeometry(code, ring);
+        updateTextareaFromRing(code, ring);
+        updateMetricsForRow(code, ring);
+      }
+    } catch (e) {
+      console.error("Reload failed:", e);
+    }
+  }
+
+  // ============================================================
+  // TABLE MANAGEMENT
+  // ============================================================
+
+  function addSectorToList(code, coordsText, vertices, areaM2) {
+    const container = document.getElementById("sectors-list");
+    const index = container.children.length;
+    const div = document.createElement("div");
+    div.className = "sector-row";
+    div.dataset.code = code;
+    div.innerHTML = `
+      <div class="sector-row-header">
+        <span class="sector-code">${code}</span>
+        <button class="btn btn-sm btn-outline-secondary p-0" type="button" data-toggle="collapse" data-target="#details-${code}" aria-expanded="false">
+          <span class="en">▼</span><span class="ar">▼</span>
+        </button>
+      </div>
+      <div id="details-${code}" class="collapse sector-row-expanded">
+        <textarea class="coords-box js-coords" spellcheck="false" data-code="${code}">${coordsText}</textarea>
+        <div class="metrics mt-2">
+          <div class="metric-pill"><span class="label"><span class="en">Verts</span><span class="ar">رؤوس</span></span><span class="value js-verts">${vertices}</span></div>
+          <div class="metric-pill"><span class="label">m²</span><span class="value js-area-m2">${areaM2.toFixed(1)}</span></div>
+          <div class="metric-pill"><span class="label">ha</span><span class="value js-area-ha">${(areaM2 / 10000).toFixed(4)}</span></div>
+        </div>
+        <div class="row-actions mt-2">
+          <button class="btn btn-sm btn-success js-save" type="button" data-code="${code}"><span class="en">💾 Save</span><span class="ar">حفظ</span></button>
+          <button class="btn btn-sm btn-outline-primary js-edit-map" type="button" data-code="${code}"><span class="en">✏️ Edit on Map</span><span class="ar">تعديل على الخريطة</span></button>
+          <button class="btn btn-sm btn-outline-danger js-delete" type="button" data-code="${code}"><span class="en">🗑️ Delete</span><span class="ar">حذف</span></button>
+          <div class="save-msg js-msg"></div>
+        </div>
+      </div>
+    `;
+    container.appendChild(div);
+    wireRowEvents(div);
+  }
+
+  function wireRowEvents(row) {
+    const code = row.dataset.code;
+    const ta = row.querySelector(".js-coords");
+    const saveBtn = row.querySelector(".js-save");
+    const editMapBtn = row.querySelector(".js-edit-map");
+    const deleteBtn = row.querySelector(".js-delete");
+
+    ta.addEventListener("input", () => {
+      if (!suppressSync) {
+        const ring = getRingFromTextarea(code);
+        if (ring) {
+          updateMetricsForRow(code, ring);
+          updatePolygonGeometry(code, ring);
+        }
+      }
+    });
+
+    saveBtn.addEventListener("click", () => saveSector(code));
+    editMapBtn.addEventListener("click", () => {
+      selectSector(code);
+      enableEditMode();
+    });
+    deleteBtn.addEventListener("click", () => deleteSector(code));
+  }
+
+  function updateNewSectorMetrics(ring) {
+    const metrics = updateMetricsForRing(ring,
+      document.querySelector(".js-new-verts"),
+      document.querySelector(".js-new-area-m2"),
+      document.querySelector(".js-new-area-ha")
+    );
+  }
+
+  function clearNewSectorForm() {
+    document.getElementById("new-sector-code").value = "";
+    document.getElementById("new-sector-name").value = "";
+    document.getElementById("new-sector-coords").value = "";
+    document.querySelector(".js-new-verts").textContent = "0";
+    document.querySelector(".js-new-area-m2").textContent = "0.0";
+    document.querySelector(".js-new-area-ha").textContent = "0.0000";
+    document.getElementById("new-sector-msg").textContent = "";
+  }
+
+  function updateSectorCount() {
+    const count = sectorPolygons.size;
+    document.getElementById("sector-count").textContent = count;
+  }
+
+  // ============================================================
+  // LOAD ALL PROJECT DATA
+  // ============================================================
+
+  async function loadProjectData() {
+    try {
+      const r = await fetch("{{ url_for('api.geojson') }}");
+      const fc = await r.json();
+      if (!fc.features) return;
+
+      // First pass: load all non-sector layers
+      fc.features.forEach(f => {
+        const coll = f.properties.collection;
+        const geom = f.geometry;
+        if (!layerGroups[coll]) return;
+
+        const color = colors[coll] || "#888";
+        const name = f.properties.name || "";
+
+        const style = {
+          color: color,
+          weight: coll === "property" ? 3 : (coll === "pipes" ? 2.5 : 2),
+          fillOpacity: coll === "zones" ? 0.1 : (coll === "basins" ? 0.15 : 0),
+          fillColor: color,
+        };
+
+        if (geom.type === "Point") {
+          const latlng = [geom.coordinates[1], geom.coordinates[0]];
+          const radius = coll === "trees" ? 3 : (coll === "water_points" ? 8 : 6);
+          const marker = L.circleMarker(latlng, {
+            radius: radius,
+            color: color,
+            fillColor: color,
+            fillOpacity: 0.9,
+            weight: 2,
+          }).bindTooltip(name);
+          layerGroups[coll].addLayer(marker);
+        } else if (geom.type === "LineString") {
+          const latlngs = geom.coordinates.map(c => [c[1], c[0]]);
+          const line = L.polyline(latlngs, style).bindTooltip(name);
+          layerGroups[coll].addLayer(line);
+        } else if (geom.type === "Polygon") {
+          const latlngs = geom.coordinates[0].map(c => [c[1], c[0]]);
+          const poly = L.polygon(latlngs, style).bindTooltip(name);
+          layerGroups[coll].addLayer(poly);
+        }
+      });
+
+      // Second pass: create editable sector polygons
+      fc.features.forEach(f => {
+        if (f.properties.collection !== "sectors") return;
+        const code = f.properties.code;
+        const ring = f.geometry.coordinates[0];
+        createSectorPolygon(code, ring);
+      });
+
+      fitToSectors();
+    } catch (e) {
+      console.error("Load project data failed:", e);
+    }
+  }
+
+  // ============================================================
+  // EVENT LISTENERS
+  // ============================================================
+
+  // Toolbar buttons
+  document.getElementById("btn-draw-polygon").addEventListener("click", () => {
+    if (isDrawingNew && drawType === "Polygon") {
+      disableDrawMode();
+    } else {
+      cancelAllModes();
+      drawType = "Polygon";
+      enableDrawMode();
+    }
+  });
+
+  document.getElementById("btn-draw-polyline").addEventListener("click", () => {
+    if (isDrawingNew && drawType === "Polyline") {
+      disableDrawMode();
+    } else {
+      cancelAllModes();
+      drawType = "Polyline";
+      enableDrawMode();
+    }
+  });
+
+  document.getElementById("btn-draw-marker").addEventListener("click", () => {
+    if (isDrawingNew && drawType === "Marker") {
+      disableDrawMode();
+    } else {
+      cancelAllModes();
+      drawType = "Marker";
+      enableDrawMode();
+    }
+  });
+
+  document.getElementById("btn-draw-circle").addEventListener("click", () => {
+    if (isDrawingNew && drawType === "Circle") {
+      disableDrawMode();
+    } else {
+      cancelAllModes();
+      drawType = "Circle";
+      enableDrawMode();
+    }
+  });
+
+  document.getElementById("btn-edit-mode").addEventListener("click", () => {
+    if (isEditingMode) {
+      disableEditMode();
+    } else {
+      cancelAllModes();
+      enableEditMode();
+    }
+  });
+
+  document.getElementById("btn-delete-mode").addEventListener("click", () => {
+    if (isDeletingMode) {
+      disableDeleteMode();
+    } else {
+      cancelAllModes();
+      enableDeleteMode();
+    }
+  });
+
+  document.getElementById("btn-cut-polygon").addEventListener("click", () => {
+    if (isCuttingMode) {
+      disableCutMode();
+    } else {
+      cancelAllModes();
+      enableCutMode();
+    }
+  });
+
+  document.getElementById("btn-cancel-edit").addEventListener("click", cancelAllModes);
+  document.getElementById("btn-fit-all").addEventListener("click", fitToSectors);
+
+  // Layers sidebar
+  document.getElementById("btn-layers-toggle").addEventListener("click", () => {
+    const sidebar = document.getElementById("layers-sidebar");
+    sidebar.style.display = sidebar.style.display === "flex" ? "none" : "flex";
+  });
+  document.getElementById("btn-close-layers").addEventListener("click", () => {
+    document.getElementById("layers-sidebar").style.display = "none";
+  });
+
+  // Basemap switcher
+  document.getElementById("basemap-select").addEventListener("change", (e) => {
+    const newBasemap = basemaps[e.target.value];
+    if (newBasemap) {
+      map.eachLayer(layer => {
+        if (layer instanceof L.TileLayer && layer !== newBasemap) {
+          map.removeLayer(layer);
+        }
+      });
+      newBasemap.addTo(map);
+    }
+  });
+
+  // Add sector form
+  document.getElementById("btn-add-sector").addEventListener("click", addSector);
+  document.getElementById("btn-clear-new").addEventListener("click", clearNewSectorForm);
+
+  // Live metrics for new sector form
+  document.getElementById("new-sector-coords").addEventListener("input", () => {
+    const ring = parseCoords(document.getElementById("new-sector-coords").value);
+    if (ring.length >= 3) {
+      const closedRing = [...ring];
+      if (closedRing[0][0] !== closedRing[closedRing.length - 1][0] || closedRing[0][1] !== closedRing[closedRing.length - 1][1]) {
+        closedRing.push(closedRing[0]);
+      }
+      updateNewSectorMetrics(closedRing);
+    } else {
+      document.querySelector(".js-new-verts").textContent = ring.length;
+      document.querySelector(".js-new-area-m2").textContent = "0.0";
+      document.querySelector(".js-new-area-ha").textContent = "0.0000";
+    }
+  });
+
+  // Wire existing rows
+  document.querySelectorAll("tr[data-code]").forEach(wireRowEvents);
+
+  // Initial load
+  loadProjectData();
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") cancelAllModes();
+    if (e.key === "Delete" && selectedSectorCode && !isDeletingMode) {
+      if (document.activeElement.tagName !== "TEXTAREA" && document.activeElement.tagName !== "INPUT") {
+        deleteSector(selectedSectorCode);
+      }
+    }
+  });
+
+})();
+</script>
+{% endif %}
+{% endblock %}

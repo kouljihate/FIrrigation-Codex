@@ -1,24 +1,567 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="h3 mb-4">Zones</h1>
-<div class="card mb-4"><div class="card-body">
-<form method="post" class="row g-3 align-items-end">
-  <div class="col-md-3"><label class="form-label">Zones per sector</label>
-    <input type="number" name="n_parts" value="3" min="2" max="10" class="form-control"></div>
-  <div class="col-md-3"><label class="form-label">Inward offset (m)</label>
-    <input type="number" name="offset" value="0" step="0.1" class="form-control"></div>
-  <div class="col-md-3"><button class="btn btn-success" type="submit">Build zones</button></div>
-</form>
-</div></div>
-{% if zones %}
-<table class="table table-striped">
-  <thead><tr><th>Name</th><th>Sector</th><th>Area (m²)</th></tr></thead>
-  <tbody>{% for z in zones %}
-  <tr><td>{{ z.name }}</td><td>{{ z.sector }}</td><td>{{ z.area_m2 }}</td></tr>
-  {% endfor %}</tbody>
-</table>
-<p class="text-muted">{{ zones|length }} zones total.</p>
-{% else %}
-<div class="alert alert-info">No zones yet.</div>
-{% endif %}
+
+<style>
+  /* ------- Layout: controls left, map right ------- */
+  .zones-layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 1rem;
+    width: 100%;
+    min-height: 560px;
+  }
+  @media (max-width: 992px) {
+    .zones-layout { grid-template-columns: 1fr; }
+  }
+
+  .zones-panel {
+    background: #ffffff;
+    border: 1px solid #e3e6ea;
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  .zones-panel h2 {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #2D6A4F;
+    margin-bottom: 0.75rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .zones-panel label.form-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 0.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .zones-panel .form-control {
+    border-color: #cfe6dd;
+    font-size: 0.9rem;
+  }
+  .zones-panel .form-control:focus {
+    border-color: #2D6A4F;
+    box-shadow: 0 0 0 3px rgba(45,106,79,0.15);
+  }
+
+  .zones-status {
+    margin-top: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    display: none;
+  }
+  .zones-status.ok  { display: block; background: #e8f5ee; color: #1B4332; border: 1px solid #b7e0c9; }
+  .zones-status.err { display: block; background: #fbe9eb; color: #842029; border: 1px solid #f1aeb5; }
+  .zones-status.busy { display: block; background: #e7f4fb; color: #055160; border: 1px solid #b6e0f5; }
+
+  /* ------- Map ------- */
+  .zones-map-card {
+    background: #ffffff;
+    border: 1px solid #e3e6ea;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .zones-map-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.6rem 0.9rem;
+    background: #f0f3f6;
+    border-bottom: 1px solid #e3e6ea;
+    font-size: 0.85rem;
+    color: #2D6A4F;
+    font-weight: 600;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .zones-map-controls {
+    display: flex;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+  }
+  .zones-map-controls button {
+    font-size: 0.72rem;
+    padding: 0.2rem 0.55rem;
+  }
+
+  #zones-map {
+    flex: 1 1 auto;
+    min-height: 520px;
+    width: 100%;
+    background: #eef2f5;
+  }
+  @media (max-width: 992px) {
+    #zones-map { min-height: 380px; }
+  }
+
+  /* ------- Zone list below ------- */
+  .zone-list-card {
+    margin-top: 1rem;
+    background: #fff;
+    border: 1px solid #e3e6ea;
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+  }
+  .zone-list-title {
+    font-weight: 700;
+    color: #2D6A4F;
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  .zone-chips {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.4rem;
+  }
+  .zone-chip {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.4rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 8px;
+    background: #f1f8f5;
+    border: 1px solid #cfe6dd;
+    font-size: 0.82rem;
+  }
+  .zone-chip.z1 { background: #e8f5ee; border-color: #b7e0c9; color: #1B4332; }
+  .zone-chip.z2 { background: #fff4e5; border-color: #ffd8a5; color: #7a4b00; }
+  .zone-chip.z3 { background: #e7f4fb; border-color: #b6e0f5; color: #055160; }
+  .zone-chip .area { font-family: ui-monospace, monospace; font-size: 0.78rem; }
+</style>
+
+<h1 class="bi mb-3">
+  <span class="en">Zones</span>
+  <span class="ar">المناطق</span>
+</h1>
+
+<div class="zones-layout">
+
+  {# ================= CONTROL PANEL ================= #}
+  <div class="zones-panel">
+    <h2>
+      <span class="en">Build parameters</span>
+      <span class="ar">معايير البناء</span>
+    </h2>
+
+    <form id="build-form">
+      <div class="mb-3">
+        <label class="form-label">
+          <span class="en">Zones per sector</span>
+          <span class="ar">عدد المناطق لكل قطاع</span>
+        </label>
+        <input type="number" name="n_parts" id="n_parts"
+               value="3" min="2" max="10" class="form-control">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label">
+          <span class="en">Inward offset (m)</span>
+          <span class="ar">الإزاحة الداخلية (م)</span>
+        </label>
+        <input type="number" name="offset" id="offset"
+               value="0" step="0.1" class="form-control">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">
+          <span class="en">Split method</span>
+          <span class="ar">طريقة التقسيم</span>
+        </label>
+
+        <div class="split-options">
+
+          <label class="split-option">
+            <input type="radio" name="split_mode" value="contour" checked>
+            <div class="split-card">
+              <div class="split-icon">〰️</div>
+              <div class="split-text">
+                <div class="split-title">
+                  <span class="en">Contour bands</span>
+                  <span class="ar">شرائح كنتورية</span>
+                </div>
+                <div class="split-desc">
+                  <span class="en">Equal-area bands perpendicular to the slope.</span>
+                  <span class="ar">شرائح متساوية عمودية على الميل.</span>
+                </div>
+              </div>
+            </div>
+          </label>
+
+          <label class="split-option">
+            <input type="radio" name="split_mode" value="fan">
+            <div class="split-card">
+              <div class="split-icon">🍰</div>
+              <div class="split-text">
+                <div class="split-title">
+                  <span class="en">Radial fan</span>
+                  <span class="ar">تقسيم شعاعي</span>
+                </div>
+                <div class="split-desc">
+                  <span class="en">Equal slices from the centroid.</span>
+                  <span class="ar">شرائح متساوية من المركز.</span>
+                </div>
+              </div>
+            </div>
+          </label>
+
+          <label class="split-option">
+            <input type="radio" name="split_mode" value="strip">
+            <div class="split-card">
+              <div class="split-icon">▤</div>
+              <div class="split-text">
+                <div class="split-title">
+                  <span class="en">Strip / Ladder</span>
+                  <span class="ar">شرائح متوازية</span>
+                </div>
+                <div class="split-desc">
+                  <span class="en">Parallel strips along the longest edge.</span>
+                  <span class="ar">شرائح موازية لأطول ضلع.</span>
+                </div>
+              </div>
+            </div>
+          </label>
+
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-success w-100 btn-stack" id="build-btn">
+        <span class="ar">🔨 إنشاء المناطق</span>
+        <span class="en">🔨 Build zones</span>
+      </button>
+    </form>
+
+    <div class="zones-status" id="build-status"></div>
+
+    <hr class="my-3">
+
+    <h2>
+      <span class="en">Map layers</span>
+      <span class="ar">طبقات الخريطة</span>
+    </h2>
+
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="layer-property" checked>
+      <label class="form-check-label" for="layer-property">
+        <span class="en">Property (P1)</span> / <span class="ar">الملك</span>
+      </label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="layer-sectors" checked>
+      <label class="form-check-label" for="layer-sectors">
+        <span class="en">Sectors</span> / <span class="ar">القطاعات</span>
+      </label>
+    </div>
+    <div class="form-check">
+      <input class="form-check-input" type="checkbox" id="layer-zones" checked>
+      <label class="form-check-label" for="layer-zones">
+        <span class="en">Zones</span> / <span class="ar">المناطق</span>
+      </label>
+    </div>
+
+    <button class="btn btn-outline-secondary btn-sm w-100 mt-3" id="fit-btn" type="button">
+      <span class="en">Fit to property</span> / <span class="ar">ملاءمة</span>
+    </button>
+  </div>
+
+  {# ================= MAP ================= #}
+  <div class="zones-map-card">
+    <div class="zones-map-header">
+      <span>
+        🗺 <span class="en">Live map</span> / <span class="ar">خريطة حية</span>
+      </span>
+      <span id="map-summary" class="text-muted small">
+        <span class="en">— zones</span>
+      </span>
+    </div>
+    <div id="zones-map"></div>
+  </div>
+
+</div>
+
+{# ================= ZONE LIST BELOW ================= #}
+<div class="zone-list-card" id="zone-list-card" {% if not zones %}style="display:none;"{% endif %}>
+  <div class="zone-list-title">
+    <span>
+      <span class="en">Current zones</span> / <span class="ar">المناطق الحالية</span>
+    </span>
+    <span id="zone-count" class="text-muted small">{{ zones|length }}</span>
+  </div>
+  <div class="zone-chips" id="zone-chips">
+    {% for z in zones %}
+    <div class="zone-chip z{{ (loop.index0 % 3) + 1 }}">
+      <span>{{ z.name }}</span>
+      <span class="area">{{ "%.1f"|format(z.area_m2) }} m²</span>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  "use strict";
+
+  const API = {
+    geojson: "{{ url_for('api.geojson') }}",
+    zones:   "{{ url_for('api.zones') }}",
+    bounds:  "{{ url_for('api.bounds') }}",
+    build:   "{{ url_for('geometry.build_zones_api') }}"
+  };
+
+  // -------- init map --------
+  const map = L.map("zones-map").setView([33.8455, -4.5860], 15);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 20, attribution: "© OpenStreetMap"
+  }).addTo(map);
+
+  const layers = {
+    property: L.layerGroup().addTo(map),
+    sectors:  L.layerGroup().addTo(map),
+    zones:    L.layerGroup().addTo(map)
+  };
+
+    const colors = {
+    property: "#000000",
+    sectors:  "#00bcd4"
+  };
+
+  /* Per-sector base palette (8 distinct hues) */
+  const SECTOR_PALETTE = {
+    S1: { base: "#00897b", name: "teal"    },
+    S2: { base: "#f9a825", name: "amber"   },
+    S3: { base: "#7e57c2", name: "violet"  },
+    S4: { base: "#43a047", name: "green"   },
+    S5: { base: "#e53935", name: "red"     },
+    S6: { base: "#1e88e5", name: "blue"    },
+    S7: { base: "#fb8c00", name: "orange"  },
+    S8: { base: "#d81b60", name: "pink"    }
+  };
+
+  /* Lightness offsets per zone index — Z1 darker, Z2 mid, Z3 lighter */
+  const ZONE_SHADE = { 1: -18, 2: 0, 3: 22 };
+
+  /* hex #rrggbb -> hsl {h, s, l} */
+  function hexToHsl(hex) {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    let h = 0, s = 0;
+    const l = (max + min) / 2;
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+        case g: h = (b - r) / d + 2; break;
+        case b: h = (r - g) / d + 4; break;
+      }
+      h /= 6;
+    }
+    return { h: h * 360, s: s * 100, l: l * 100 };
+  }
+
+  function hslToHex(h, s, l) {
+    l = Math.max(0, Math.min(100, l));
+    s = Math.max(0, Math.min(100, s));
+    s /= 100; l /= 100;
+    const k = n => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    const toHex = x => Math.round(255 * x).toString(16).padStart(2, "0");
+    return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+  }
+
+  function zoneColor(sectorCode, zoneIndex) {
+    const base = (SECTOR_PALETTE[sectorCode] || { base: "#607d8b" }).base;
+    const hsl = hexToHsl(base);
+    const deltaL = ZONE_SHADE[zoneIndex] ?? 0;
+    return hslToHex(hsl.h, hsl.s, hsl.l + deltaL);
+  }
+
+  function zoneColor(idx) {
+    return colors.zones[(idx - 1) % 3] || "#3f51b5";
+  }
+
+  function addFeature(f) {
+    const coll = f.properties.collection;
+    const layer = layers[coll];
+    if (!layer) return;
+
+    const g = f.geometry;
+    const name = f.properties.name || "";
+
+        if (g.type === "Polygon") {
+      const latlngs = g.coordinates[0].map(c => [c[1], c[0]]);
+      let color = colors[coll];
+      let fillOpacity = 0.05;
+
+      if (coll === "zones") {
+        const sector = f.properties.sector || "";
+        const zIdx   = f.properties.zone_index || 1;
+        color = zoneColor(sector, zIdx);
+        fillOpacity = 0.35;
+      } else if (coll === "sectors") {
+        color = colors.sectors;
+      }
+
+      const poly = L.polygon(latlngs, {
+        color,
+        weight: coll === "zones" ? 1.5 : 2,
+        fillColor: color,
+        fillOpacity
+      }).bindTooltip(name);
+      layer.addLayer(poly);
+    }
+  }
+
+  function clearLayers() {
+    Object.values(layers).forEach(g => g.clearLayers());
+  }
+
+  function setSummary(n) {
+    const el = document.getElementById("map-summary");
+    el.textContent = n + " zones / مناطق";
+  }
+
+  // -------- load everything --------
+  function loadAll() {
+    clearLayers();
+    fetch(API.geojson)
+      .then(r => r.json())
+      .then(fc => {
+        (fc.features || []).forEach(addFeature);
+        const zc = (fc.features || []).filter(f => f.properties.collection === "zones").length;
+        setSummary(zc);
+
+        // fit
+        fetch(API.bounds)
+          .then(r => r.json())
+          .then(d => { if (d.bounds) map.fitBounds(d.bounds, { padding: [20, 20] }); });
+      })
+      .catch(err => console.error("load failed:", err));
+  }
+
+  // load only zones (fast refresh after build)
+  function loadZones() {
+    layers.zones.clearLayers();
+    fetch(API.zones)
+      .then(r => r.json())
+      .then(fc => {
+        (fc.features || []).forEach(addFeature);
+        setSummary((fc.features || []).length);
+      });
+  }
+
+  // -------- form submit → AJAX --------
+  const form = document.getElementById("build-form");
+  const status = document.getElementById("build-status");
+  const buildBtn = document.getElementById("build-btn");
+
+  function showStatus(kind, text) {
+    status.className = "zones-status " + kind;
+    status.textContent = text;
+  }
+
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    const fd = new FormData(form);
+    buildBtn.disabled = true;
+    showStatus("busy", "Building… / جارٍ الإنشاء…");
+
+    fetch(API.build, { method: "POST", body: fd })
+      .then(r => r.json())
+      .then(j => {
+        buildBtn.disabled = false;
+        if (!j.ok) {
+          showStatus("err", "❌ " + (j.error || "failed"));
+          return;
+        }
+        showStatus("ok", "✔ Created " + j.zones + " zones / تم إنشاء " + j.zones + " منطقة");
+        loadAll();  // reload everything with new zones
+        refreshZoneList();
+      })
+      .catch(err => {
+        buildBtn.disabled = false;
+        showStatus("err", "❌ " + err.message);
+      });
+  });
+
+  // -------- zone chips below map --------
+  function refreshZoneList() {
+    fetch(API.zones)
+      .then(r => r.json())
+      .then(fc => {
+        const features = fc.features || [];
+        const count = features.length;
+        document.getElementById("zone-count").textContent = count;
+
+        const card = document.getElementById("zone-list-card");
+        card.style.display = count ? "" : "none";
+
+        const chips = document.getElementById("zone-chips");
+        chips.innerHTML = "";
+                features
+          .sort((a, b) => (a.properties.name || "").localeCompare(b.properties.name || ""))
+          .forEach(f => {
+            const sector = f.properties.sector || "";
+            const zIdx   = f.properties.zone_index || 1;
+            const name   = f.properties.name || "";
+            const area   = (f.properties.area_m2 || 0).toFixed(1);
+            const col    = zoneColor(sector, zIdx);
+
+            const div = document.createElement("div");
+            div.className = "zone-chip";
+            div.style.background = col + "22";   // ~13% opacity fill
+            div.style.borderColor = col;
+            div.style.color = "#212529";
+            div.innerHTML = `<span style="font-weight:600;">${name}</span>` +
+                            `<span class="area">${area} m²</span>`;
+            chips.appendChild(div);
+          });
+      });
+  }
+
+  // -------- layer toggles --------
+  document.getElementById("layer-property").addEventListener("change", e => {
+    e.target.checked ? map.addLayer(layers.property) : map.removeLayer(layers.property);
+  });
+  document.getElementById("layer-sectors").addEventListener("change", e => {
+    e.target.checked ? map.addLayer(layers.sectors) : map.removeLayer(layers.sectors);
+  });
+  document.getElementById("layer-zones").addEventListener("change", e => {
+    e.target.checked ? map.addLayer(layers.zones) : map.removeLayer(layers.zones);
+  });
+
+  // -------- fit button --------
+  document.getElementById("fit-btn").addEventListener("click", () => {
+    fetch(API.bounds)
+      .then(r => r.json())
+      .then(d => { if (d.bounds) map.fitBounds(d.bounds, { padding: [20, 20] }); });
+  });
+
+  // -------- initial load --------
+  loadAll();
+})();
+</script>
 {% endblock %}

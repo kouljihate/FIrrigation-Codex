@@ -76,8 +76,8 @@ def _build_rows(project_id: str, spacing: float, offset: float) -> None:
         for (ri, seg) in build_rows(poly, ux, uy, spacing, offset):
             seg_ll = [list(to_lonlat(x, y)) for x, y in seg]
             name = f"{z['name']}-R{ri+1:02d}"
-            length = math.hypot(seg_ll[1][0] - seg_ll[0][0],
-                                seg_ll[1][1] - seg_ll[0][1]) * 111000.0 * 0.85
+            length = math.hypot(seg[1][0] - seg[0][0],
+                                seg[1][1] - seg[0][1])
             repository.upsert("rows",
                 {"project_id": project_id, "name": name},
                 {"project_id": project_id, "name": name,
@@ -126,10 +126,14 @@ def _place_trees(project_id: str, spacing: float, fig_pct: int) -> None:
         line = r["geom"]["coordinates"]
         start = (line[0][0], line[0][1])
         end = (line[-1][0], line[-1][1])
-        pts = place_trees_on_row(start, end, spacing, center=True)
-        for i, (lon, lat) in enumerate(pts):
+        to_local, to_lonlat = _projection([start, end])
+        points_m = place_trees_on_row(
+            to_local(*start), to_local(*end), spacing, center=True
+        )
+        for i, point_m in enumerate(points_m):
+            lon, lat = to_lonlat(*point_m)
             fig_counter += 1
-            species = "fig" if (fig_counter % 100) < fig_pct else "olive"
+            species = "fig" if (fig_counter - 1) % 100 < fig_pct else "olive"
             name = f"T {r['name']}-T{i+1:02d}"
             repository.upsert("trees",
                 {"project_id": project_id, "name": name},
@@ -176,14 +180,16 @@ def _build_driplines(project_id: str, emitter_spacing: float) -> None:
         line = r["geom"]["coordinates"]
         start = (line[0][0], line[0][1])
         end = (line[-1][0], line[-1][1])
-        dl = dripline_from_row(start, end, emitter_spacing)
+        to_local, _ = _projection([start, end])
+        start_m, end_m = to_local(*start), to_local(*end)
+        dl = dripline_from_row(start_m, end_m, emitter_spacing)
         name = f"DL {r['name']}"
         repository.upsert("driplines",
             {"project_id": project_id, "name": name},
             {"project_id": project_id, "name": name,
              "row_name": r["name"], "zone_name": r["zone_name"],
              "geom": {"type": "LineString",
-                      "coordinates": [list(p) for p in dl["geometry"]]},
+                      "coordinates": [list(start), list(end)]},
              "length_m": dl["length_m"],
              "emitter_count": dl["emitter_count"],
              "revision_id": revision,

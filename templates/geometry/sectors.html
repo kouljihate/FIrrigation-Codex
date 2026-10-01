@@ -1,15 +1,324 @@
 {% extends "base.html" %}
 {% block content %}
-<h1 class="h3 mb-4">Sectors</h1>
+
+<style>
+  .sectors-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+
+  .sectors-table th,
+  .sectors-table td {
+    padding: 0.75rem 0.85rem;
+    border-bottom: 1px solid #e3e6ea;
+    vertical-align: top;
+    font-size: 0.88rem;
+  }
+
+  .sectors-table th {
+    background: #f0f3f6;
+    font-weight: 600;
+    color: #2D6A4F;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.5px;
+  }
+
+  .sectors-table tr:last-child td { border-bottom: none; }
+  .sectors-table tr:hover td { background: #fafdfb; }
+
+  .sector-code {
+    font-weight: 700;
+    color: #2D6A4F;
+    font-size: 1rem;
+    padding-top: 0.9rem !important;
+  }
+
+  .coords-box {
+    width: 100%;
+    min-height: 200px;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.75rem;
+    line-height: 1.35;
+    border: 1px solid #cfe6dd;
+    border-radius: 8px;
+    padding: 0.5rem 0.6rem;
+    background: #fbfffd;
+    resize: vertical;
+    direction: ltr;
+    text-align: left;
+  }
+  .coords-box:focus {
+    outline: none;
+    border-color: #2D6A4F;
+    box-shadow: 0 0 0 3px rgba(45,106,79,0.15);
+  }
+
+  .metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 110px;
+  }
+  .metric-pill {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    background: #f1f8f5;
+    border: 1px solid #cfe6dd;
+    border-radius: 8px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.8rem;
+  }
+  .metric-pill .label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    color: #6c757d;
+  }
+  .metric-pill .value {
+    font-weight: 700;
+    color: #2D6A4F;
+    font-family: ui-monospace, monospace;
+  }
+
+  .row-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 130px;
+  }
+  .row-actions button {
+    white-space: nowrap;
+  }
+
+  .save-msg {
+    font-size: 0.72rem;
+    margin-top: 0.25rem;
+    min-height: 1em;
+  }
+  .save-msg.ok  { color: #198754; }
+  .save-msg.err { color: #dc3545; }
+
+  .empty-state {
+    padding: 2rem;
+    text-align: center;
+    background: #f8f9fa;
+    border-radius: 12px;
+    color: #6c757d;
+  }
+</style>
+
+<h1 class="bi mb-3">
+  <span class="en">Sectors</span>
+  <span class="ar">القطاعات</span>
+</h1>
+
 {% if sectors %}
-<table class="table table-striped">
-  <thead><tr><th>Code</th><th>Vertices</th><th>Area (m²)</th></tr></thead>
-  <tbody>{% for s in sectors %}
-  <tr><td>{{ s.code }}</td><td>{{ s.vertices }}</td><td>{{ s.area_m2 }}</td></tr>
-  {% endfor %}</tbody>
+<p class="text-muted small mb-3">
+  <span class="en">Edit coordinates below (one <code>lon,lat</code> per line). Area and vertex count update live. Click <strong>Save</strong> to commit.</span>
+  <span class="ar">حرر الإحداثيات بالأسفل (سطر لكل <code>lon,lat</code>). يتم تحديث المساحة وعدد النقاط فورياً. اضغط <strong>حفظ</strong> للتثبيت.</span>
+</p>
+
+<table class="sectors-table">
+  <thead>
+    <tr>
+      <th style="width:70px;">
+        <span class="en">Code</span> / <span class="ar">الرمز</span>
+      </th>
+      <th>
+        <span class="en">Coordinates (lon,lat per line)</span> /
+        <span class="ar">الإحداثيات</span>
+      </th>
+      <th style="width:130px;">
+        <span class="en">Metrics</span> / <span class="ar">القياسات</span>
+      </th>
+      <th style="width:150px;">
+        <span class="en">Actions</span> / <span class="ar">إجراءات</span>
+      </th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in sectors %}
+    <tr data-code="{{ s.code }}">
+      <td class="sector-code">{{ s.code }}</td>
+
+      <td>
+        <textarea class="coords-box js-coords" spellcheck="false">{{ s.coords_text }}</textarea>
+      </td>
+
+      <td>
+        <div class="metrics">
+          <div class="metric-pill">
+            <span class="label">Verts</span>
+            <span class="value js-verts">{{ s.vertices }}</span>
+          </div>
+          <div class="metric-pill">
+            <span class="label">m²</span>
+            <span class="value js-area-m2">{{ "%.1f"|format(s.area_m2) }}</span>
+          </div>
+          <div class="metric-pill">
+            <span class="label">ha</span>
+            <span class="value js-area-ha">{{ "%.4f"|format(s.area_m2 / 10000) }}</span>
+          </div>
+        </div>
+      </td>
+
+      <td>
+        <div class="row-actions">
+          <button class="btn btn-sm btn-success js-save" type="button">
+            <span class="en">💾 Save</span><span class="ar">حفظ</span>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary js-revert" type="button">
+            <span class="en">↺ Revert</span><span class="ar">تراجع</span>
+          </button>
+          <div class="save-msg js-msg"></div>
+        </div>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
 </table>
-<p class="text-muted">To change sectors, re-run Step 01 with a new KML.</p>
+
 {% else %}
-<div class="alert alert-warning">No sectors found. Run Step 01 first.</div>
+<div class="empty-state bi">
+  <div>
+    <div class="en">No sectors found. Run Step 01 first.</div>
+    <div class="ar">لا توجد قطاعات. نفذ الخطوة 01 أولاً.</div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+{% if sectors %}
+<script>
+(function () {
+  "use strict";
+
+  const R = 6378137.0;
+  const M_PER_DEG_LAT = Math.PI * R / 180.0;
+
+  // Parse the textarea into [[lon,lat], ...]
+  function parseCoords(text) {
+    const out = [];
+    for (const raw of text.split(/\r?\n/)) {
+      const line = raw.trim();
+      if (!line) continue;
+      const parts = line.split(",").map(s => s.trim());
+      if (parts.length < 2) continue;
+      const lon = parseFloat(parts[0]);
+      const lat = parseFloat(parts[1]);
+      if (!isFinite(lon) || !isFinite(lat)) continue;
+      out.push([lon, lat]);
+    }
+    return out;
+  }
+
+  // Shoelace area in m² (lat-corrected)
+  function ringAreaM2(ring) {
+    if (ring.length < 3) return 0;
+    const r = ring.slice();
+    if (r[0][0] !== r[r.length - 1][0] || r[0][1] !== r[r.length - 1][1]) {
+      r.push(r[0]);
+    }
+    let latSum = 0;
+    for (const p of r) latSum += p[1];
+    const lat0 = latSum / r.length;
+    const mPerDegLon = M_PER_DEG_LAT * Math.cos(lat0 * Math.PI / 180);
+
+    let s = 0;
+    for (let i = 0; i < r.length - 1; i++) {
+      const x1 = r[i][0] * mPerDegLon, y1 = r[i][1] * M_PER_DEG_LAT;
+      const x2 = r[i + 1][0] * mPerDegLon, y2 = r[i + 1][1] * M_PER_DEG_LAT;
+      s += x1 * y2 - x2 * y1;
+    }
+    return Math.abs(s) / 2;
+  }
+
+  function updateMetrics(row) {
+    const ta = row.querySelector(".js-coords");
+    const ring = parseCoords(ta.value);
+
+    // count vertices excluding duplicate closing point
+    let verts = ring.length;
+    if (ring.length > 1 &&
+        ring[0][0] === ring[ring.length - 1][0] &&
+        ring[0][1] === ring[ring.length - 1][1]) {
+      verts -= 1;
+    }
+
+    const area = ringAreaM2(ring);
+
+    row.querySelector(".js-verts").textContent   = verts;
+    row.querySelector(".js-area-m2").textContent = area.toFixed(1);
+    row.querySelector(".js-area-ha").textContent = (area / 10000).toFixed(4);
+  }
+
+  function setMsg(row, text, isError) {
+    const el = row.querySelector(".js-msg");
+    el.textContent = text;
+    el.classList.remove("ok", "err");
+    el.classList.add(isError ? "err" : "ok");
+    if (!isError) {
+      setTimeout(() => { el.textContent = ""; }, 3000);
+    }
+  }
+
+  // wire up every row
+  document.querySelectorAll("tr[data-code]").forEach(row => {
+    const ta = row.querySelector(".js-coords");
+    const saveBtn = row.querySelector(".js-save");
+    const revertBtn = row.querySelector(".js-revert");
+
+    // live update on typing
+    ta.addEventListener("input", () => updateMetrics(row));
+
+    // initial metrics
+    updateMetrics(row);
+
+    // save
+    saveBtn.addEventListener("click", async () => {
+      const code = row.getAttribute("data-code");
+      const fd = new FormData();
+      fd.append("code", code);
+      fd.append("coords", ta.value);
+
+      try {
+        const r = await fetch("{{ url_for('geometry.save_sector') }}", {
+          method: "POST",
+          body: fd,
+        });
+        const j = await r.json();
+        if (!j.ok) {
+          setMsg(row, "❌ " + (j.error || "save failed"), true);
+          return;
+        }
+        // update metrics from server response
+        row.querySelector(".js-verts").textContent   = j.vertices;
+        row.querySelector(".js-area-m2").textContent = j.area_m2.toFixed(1);
+        row.querySelector(".js-area-ha").textContent = j.area_ha.toFixed(4);
+        setMsg(row, "✔ Saved", false);
+      } catch (e) {
+        setMsg(row, "❌ " + e.message, true);
+      }
+    });
+
+    // revert = reload the page (which re-reads the DB)
+    revertBtn.addEventListener("click", () => {
+      if (confirm("Discard unsaved changes and reload?")) {
+        window.location.reload();
+      }
+    });
+  });
+})();
+</script>
 {% endif %}
 {% endblock %}

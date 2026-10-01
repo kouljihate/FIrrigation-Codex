@@ -9,7 +9,7 @@
         href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.2/dist/journal/bootstrap.min.css">
   <link rel="stylesheet"
         href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css', v='7') }}">
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -19,77 +19,334 @@
   <div class="container-fluid h-100">
     <div class="d-flex align-items-center justify-content-between h-100">
 
-      <!-- left: English title -->
+      <!-- LEFT: sidebar toggle + English title -->
       <div class="d-flex align-items-center gap-3">
-        <h1 class="app-title en" href="{{ url_for('home.home') }}">
+        <button type="button" class="btn btn-sm btn-outline-light d-lg-none"
+                id="sidebar-toggle" aria-label="Toggle sidebar">
+          ☰
+        </button>
+        <a class="app-title en" href="{{ url_for('home.home') }}">
           🌱 {{ app_title }}
-        </h1>
+        </a>
       </div>
 
-      <!-- right: Arabic title + icons -->
+      <!-- CENTER: Project Selector -->
       <div class="d-flex align-items-center gap-2">
-        <h1 class="app-title ar fs-2" href="{{ url_for('home.home') }}">
-         🌱 منصة الري الزراعي 
-        </h1>
+        <form method="post" action="{{ url_for('project.set_project') }}" class="d-flex align-items-center gap-2 mb-0">
+          <label class="form-label mb-0 small bi" for="header-project-select">
+            <span class="en">Project:</span><span class="ar">المشروع:</span>
+          </label>
+          <select class="form-select form-select-sm" id="header-project-select" name="project_id" style="width: auto; min-width: 180px;" onchange="this.form.submit()">
+            <option value="">-- Select Project --</option>
+            {% for p in projects %}
+            <option value="{{ p.project_id }}" {% if p.project_id == project_id %}selected{% endif %}>
+              {{ p.name or p.project_id }}
+            </option>
+            {% endfor %}
+          </select>
+        </form>
+      </div>
+
+      <!-- RIGHT: Map, Logs, Arabic title -->
+      <div class="d-flex align-items-center gap-2">
+        <a class="btn btn-sm btn-outline-light btn-stack"
+           href="{{ url_for('map_view.map_page') }}">
+          <span class="ar">الخريطة 🗺</span>
+          <span class="en">Map 🗺</span>
+        </a>
+        <a class="btn btn-sm btn-outline-light btn-stack"
+           href="{{ url_for('logs.index') }}">
+          <span class="ar">السجل 📜</span>
+          <span class="en">Logs 📜</span>
+        </a>
+        <a class="app-title ar d-none d-md-inline" href="{{ url_for('home.home') }}">
+          منصة الري الزراعي 🌱
+        </a>
       </div>
 
     </div>
   </div>
 </header>
 
-<!-- ===================== SCROLLABLE MAIN ===================== -->
-<main class="app-main">
-  {% include '_section_nav.html' %}
+<!-- ===================== LAYOUT WRAPPER ===================== -->
+<div class="app-layout">
 
-  <div class="container-fluid py-4">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for cat, msg in messages %}
-          <div class="alert alert-{{ 'danger' if cat == 'error' else 'success' }} alert-dismissible fade show">
-            {{ msg }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-          </div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+    <!-- ---------- SIDEBAR ---------- -->
+  <aside class="app-sidebar" id="app-sidebar">
+    <button class="sidebar-pin-btn" id="sidebar-pin-btn" aria-label="Pin sidebar" title="Pin sidebar">📌</button>
 
-    {% block content %}{% endblock %}
-  </div>
-</main>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">
+        <span class="en">Quick Actions</span>
+        <span class="ar">إجراءات سريعة</span>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a class="sidebar-link" href="{{ url_for('project.initial') }}">
+          <span class="sidebar-icon">📥</span>
+          <span class="sidebar-text">
+            <span class="sidebar-ar">رفع ملف KML</span>
+            <span class="sidebar-en">Upload KML</span>
+          </span>
+        </a>
+        <a class="sidebar-link" href="{{ url_for('geometry.zones') }}">
+          <span class="sidebar-icon">🔷</span>
+          <span class="sidebar-text">
+            <span class="sidebar-ar">إنشاء المناطق</span>
+            <span class="sidebar-en">Build zones</span>
+          </span>
+        </a>
+        <a class="sidebar-link" href="{{ url_for('field.rows') }}">
+          <span class="sidebar-icon">➖</span>
+          <span class="sidebar-text">
+            <span class="sidebar-ar">إنشاء الصفوف</span>
+            <span class="sidebar-en">Build rows</span>
+          </span>
+        </a>
+        <a class="sidebar-link" href="{{ url_for('field.trees') }}">
+          <span class="sidebar-icon">🌳</span>
+          <span class="sidebar-text">
+            <span class="sidebar-ar">زرع الأشجار</span>
+            <span class="sidebar-en">Place trees</span>
+          </span>
+        </a>
+        <a class="sidebar-link" href="{{ url_for('map_view.map_page') }}">
+          <span class="sidebar-icon">🗺</span>
+          <span class="sidebar-text">
+            <span class="sidebar-ar">فتح الخريطة</span>
+            <span class="sidebar-en">Open map</span>
+          </span>
+        </a>
+        <a class="sidebar-link sidebar-link-danger"
+           href="{{ url_for('project.close_project') }}"
+           data-confirm
+           data-confirm-en="Close the current project?"
+           data-confirm-ar="إغلاق المشروع الحالي؟"
+           data-confirm-title-en="Close Project"
+           data-confirm-title-ar="إغلاق المشروع"
+           data-confirm-ok-en="Close"
+           data-confirm-ok-ar="إغلاق"
+           data-confirm-danger>
+          <span class="sidebar-icon">🚪</span>
+          <span class="sidebar-text">
+            <span class="sidebar-ar">إغلاق المشروع</span>
+            <span class="sidebar-en">Close Project</span>
+          </span>
+        </a>
+      </nav>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">
+        <span class="en">Exports</span>
+        <span class="ar">التصدير</span>
+      </div>
+      <nav class="sidebar-nav">
+        <a class="sidebar-link" href="{{ url_for('export.kml') }}">
+          <span class="sidebar-icon">📄</span>
+          <span class="sidebar-text">
+            <span class="sidebar-ar">تنزيل KML</span>
+            <span class="sidebar-en">Download KML</span>
+          </span>
+        </a>
+        <a class="sidebar-link" href="{{ url_for('export.dxf') }}">
+          <span class="sidebar-icon">📐</span>
+          <span class="sidebar-text">
+            <span class="sidebar-ar">تنزيل DXF</span>
+            <span class="sidebar-en">Download DXF</span>
+          </span>
+        </a>
+        <a class="sidebar-link" href="{{ url_for('export.geojson') }}">
+          <span class="sidebar-icon">🌐</span>
+          <span class="sidebar-text">
+            <span class="sidebar-ar">تنزيل GeoJSON</span>
+            <span class="sidebar-en">Download GeoJSON</span>
+          </span>
+        </a>
+        <a class="sidebar-link" href="{{ url_for('export.trees_csv') }}">
+          <span class="sidebar-icon">📊</span>
+          <span class="sidebar-text">
+            <span class="sidebar-ar">قائمة الأشجار</span>
+            <span class="sidebar-en">Trees CSV</span>
+          </span>
+        </a>
+        <a class="sidebar-link" href="{{ url_for('export.bom') }}">
+          <span class="sidebar-icon">📦</span>
+          <span class="sidebar-text">
+            <span class="sidebar-ar">قائمة المواد</span>
+            <span class="sidebar-en">Bill of Materials</span>
+          </span>
+        </a>
+      </nav>
+    </div>
+
+  </aside>
+  <!-- ---------- MAIN ---------- -->
+  <main class="app-main">
+    {% include '_section_nav.html' %}
+
+    <div class="container-fluid py-4">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+</div>
 
 <!-- ===================== FIXED FOOTER ===================== -->
 <footer class="app-footer">
   <div class="container-fluid">
     <div class="row align-items-center">
-
-      <!-- column 1: English -->
       <div class="col-md-4 text-start">
         <div class="en small">
-          DB {{ db_version }} - {{ db_connection }} - {{ db_driver }}
+         DB: {{db_connection}} - {{ db_name }} | db version: {{ db_version }} | Flask: {{ flask_version }}
         </div>
       </div>
-
-      <!-- column 2: Arabic -->
       <div class="col-md-4 text-center">
-
-           <code>{{ project_id }}</code>
-
+          <code>{{ project_id }}</code>
       </div>
-
-      <!-- column 3: version + counters -->
       <div class="col-md-4 text-end">
         <div class="small">
-          <span class="badge bg-primary me-2">v{{ app_version }}</span>
-        
+          <span class="badge bg-success me-2">v{{ app_version }}</span>
         </div>
       </div>
-
     </div>
   </div>
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // Sidebar: auto-hide (desktop) + mobile drawer toggle
+  document.addEventListener("DOMContentLoaded", function () {
+    const sb = document.getElementById("app-sidebar");
+    const toggleBtn = document.getElementById("sidebar-toggle");
+    const pinBtn = document.getElementById("sidebar-pin-btn");
+    const layout = document.querySelector(".app-layout");
+
+    // Mobile drawer toggle
+    if (toggleBtn && sb) {
+      toggleBtn.addEventListener("click", function () {
+        sb.classList.toggle("open");
+      });
+    }
+
+    // Desktop auto-hide / pin
+    if (pinBtn && sb && layout) {
+      // Start collapsed on desktop
+      if (window.innerWidth > 992) {
+        sb.classList.add("collapsed");
+        layout.classList.remove("sidebar-pinned");
+      }
+
+      pinBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        const isPinned = sb.classList.toggle("collapsed");
+        layout.classList.toggle("sidebar-pinned", !isPinned);
+        pinBtn.classList.toggle("pinned", !isPinned);
+        pinBtn.textContent = isPinned ? "📌" : "📍";
+        pinBtn.title = isPinned ? "Pin sidebar" : "Unpin sidebar";
+        pinBtn.setAttribute("aria-label", isPinned ? "Pin sidebar" : "Unpin sidebar");
+      });
+
+      // Keep expanded while hovering (when collapsed)
+      let hoverTimer;
+      sb.addEventListener("mouseenter", () => {
+        clearTimeout(hoverTimer);
+        if (sb.classList.contains("collapsed") && !layout.classList.contains("sidebar-pinned")) {
+          sb.style.pointerEvents = "auto";
+        }
+      });
+      sb.addEventListener("mouseleave", () => {
+        if (sb.classList.contains("collapsed") && !layout.classList.contains("sidebar-pinned")) {
+          hoverTimer = setTimeout(() => {
+            sb.style.pointerEvents = "";
+          }, 150);
+        }
+      });
+    }
+
+    // Close mobile drawer on link click
+    sb?.querySelectorAll(".sidebar-link").forEach(link => {
+      link.addEventListener("click", () => {
+        if (window.innerWidth <= 992) sb.classList.remove("open");
+      });
+    });
+  });
+</script>
+
+<!-- ===================== CONFIRM MODAL ===================== -->
+<div class="modal fade" id="appConfirmModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <span class="en">Confirm</span>
+          <span class="ar">تأكيد</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <span class="en"></span>
+        <span class="ar"></span>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-stack js-cancel" data-bs-dismiss="modal">
+          <span class="ar">إلغاء</span>
+          <span class="en">Cancel</span>
+        </button>
+        <button type="button" class="btn btn-success btn-stack js-ok">
+          <span class="ar">نعم</span>
+          <span class="en">Yes</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== ALERT MODAL ===================== -->
+<div class="modal fade" id="appAlertModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">
+          <span class="en">Notice</span>
+          <span class="ar">تنبيه</span>
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <span class="en"></span>
+        <span class="ar"></span>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-success btn-stack js-ok" data-bs-dismiss="modal">
+          <span class="ar">حسناً</span>
+          <span class="en">OK</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/toasts.js') }}"></script>
+<script src="{{ url_for('static', filename='js/modals.js') }}"></script>
 {% block scripts %}{% endblock %}
+<!-- ===================== BOOTSTRAP TOASTS ===================== -->
+<div class="toast-container position-fixed top-0 end-0 p-3"
+     id="toast-container"
+     style="z-index: 1080; margin-top: calc(var(--header-h) + 8px);">
+  <!-- toasts injected here by JS -->
+</div>
+
+<!-- Hidden raw data: Flask flashes get converted to toasts by JS -->
+<div id="flash-data" class="d-none">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% for cat, msg in messages %}
+      <span data-category="{{ cat }}">{{ msg }}</span>
+    {% endfor %}
+  {% endwith %}
+</div>
 </body>
 </html>
