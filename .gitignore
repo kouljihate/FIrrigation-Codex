@@ -14,3 +14,6 @@ logs/
 # User-generated imports and exports
 imports/
 exports/
+
+# Accidental nested repository retained locally after the source copy
+FIrrigation/
