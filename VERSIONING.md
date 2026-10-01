@@ -1,6 +1,12 @@
 # Versioning
 
-Current version: `2.0.0`
+Current version: `2.1.0`
+
+## 2.1.0 — 2026-10-01
+
+- Added a map-based sector editor showing all imported/project geometry layers.
+- Added multi-sector selection, colour and coordinate editing, rename, split, merge, and staged removal.
+- Added one validated batch confirmation that records a revision and clears dependent irrigation-design layers.
 
 ## 2.0.0 — 2026-10-01
 

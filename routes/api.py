@@ -34,7 +34,10 @@ def geojson():
                 "type": "Feature",
                 "properties": {
                     "name": d.get("name"),
+                    "code": d.get("sector_code"),
                     "collection": coll,
+                    "color": d.get("color"),
+                    "area_m2": d.get("area_m2"),
                     "diameter_mm": d.get("diameter_mm"),
                     "species": d.get("species"),
                     "elev_m": d.get("elev_m"),

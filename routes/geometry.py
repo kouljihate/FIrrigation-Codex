@@ -12,8 +12,8 @@ from flask import (
     Blueprint, current_app, flash, redirect, render_template,
     request, session, url_for,
 )
-from shapely.geometry import Polygon
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Polygon, mapping, shape
+from shapely.ops import split, unary_union
 from shapely.validation import make_valid
 
 from core.geometry import clean_polygon, fall_direction
@@ -44,6 +44,7 @@ def sectors():
             "coords_text": "\n".join(f"{x:.7f},{y:.7f}" for x, y in ring),
             "vertices": len(ring),
             "area_m2":  s.get("area_m2", 0),
+            "color": s.get("color", "#00bcd4"),
         })
     return render_template("geometry/sectors.html", sectors=sectors)
 
@@ -65,6 +66,7 @@ def sectors_enhanced():
             "coords_text": "\n".join(f"{x:.7f},{y:.7f}" for x, y in ring),
             "vertices": len(ring),
             "area_m2":  s.get("area_m2", 0),
+            "color": s.get("color", "#00bcd4"),
         })
     return render_template("geometry/sectors_enhanced.html", sectors=sectors)
 
@@ -277,6 +279,142 @@ def _ring_area_m2(ring):
         x2, y2 = ring[i+1][0] * m_per_deg_lon, ring[i+1][1] * m_per_deg_lat
         s += x1 * y2 - x2 * y1
     return abs(s) / 2.0
+
+
+def _polygon_from_coordinates(coordinates: list) -> Polygon:
+    """Validate a WGS84 exterior ring and return one valid polygon."""
+    if len(coordinates) < 3:
+        raise ValueError("a sector needs at least three points")
+    ring = [[float(point[0]), float(point[1])] for point in coordinates]
+    if ring[0] != ring[-1]:
+        ring.append(ring[0])
+    polygon = make_valid(Polygon(ring))
+    if polygon.is_empty or polygon.geom_type != "Polygon" or polygon.area == 0:
+        raise ValueError("sector geometry must be one non-empty polygon")
+    return polygon
+
+
+def _ring_from_text(coords_text: str) -> list[list[float]]:
+    ring = []
+    for raw_line in coords_text.splitlines():
+        parts = [part.strip() for part in raw_line.split(",")]
+        if len(parts) < 2 or not raw_line.strip():
+            continue
+        ring.append([float(parts[0]), float(parts[1])])
+    return ring
+
+
+def _sector_payload(code: str, polygon: Polygon, color: str, now, revision: int) -> dict:
+    geometry = mapping(polygon)
+    ring = geometry["coordinates"][0]
+    return {
+        "name": code,
+        "sector_code": code,
+        "geom": geometry,
+        "area_m2": _ring_area_m2(ring),
+        "color": color,
+        "updated_at": now,
+        "revision_id": revision,
+    }
+
+
+@bp.route("/sectors/apply", methods=["POST"])
+def apply_sector_changes():
+    """Validate and atomically apply staged sector edits from the map editor."""
+    pid = session.get("project_id", "")
+    payload = request.get_json(silent=True) or {}
+    operations = payload.get("operations")
+    if not pid:
+        return jsonify({"ok": False, "error": "no project"}), 400
+    if not isinstance(operations, list) or not operations:
+        return jsonify({"ok": False, "error": "no staged sector changes"}), 400
+
+    db = get_db()
+    documents = {
+        document["sector_code"]: document
+        for document in db.sectors.find({"project_id": pid})
+    }
+
+    try:
+        for operation in operations:
+            operation_type = operation.get("type")
+            if operation_type == "update":
+                old_code = str(operation.get("code", "")).strip()
+                new_code = str(operation.get("new_code", old_code)).strip()
+                if old_code not in documents or not new_code:
+                    raise ValueError("sector update references an unknown or empty code")
+                if new_code != old_code and new_code in documents:
+                    raise ValueError(f"sector code '{new_code}' already exists")
+                polygon = _polygon_from_coordinates(operation.get("coordinates") or [])
+                document = documents.pop(old_code)
+                document.update(_sector_payload(
+                    new_code, polygon, operation.get("color", document.get("color", "#00bcd4")),
+                    datetime.now(timezone.utc), 0,
+                ))
+                documents[new_code] = document
+            elif operation_type == "delete":
+                for code in operation.get("codes") or []:
+                    if code not in documents:
+                        raise ValueError(f"sector '{code}' no longer exists")
+                    documents.pop(code)
+            elif operation_type == "merge":
+                codes = operation.get("codes") or []
+                new_code = str(operation.get("new_code", "")).strip()
+                if len(codes) != 2 or not new_code or any(code not in documents for code in codes):
+                    raise ValueError("merge requires exactly two existing sectors and a new code")
+                if new_code not in codes and new_code in documents:
+                    raise ValueError(f"sector code '{new_code}' already exists")
+                merged = unary_union([shape(documents[code]["geom"]) for code in codes])
+                if merged.geom_type != "Polygon":
+                    raise ValueError("selected sectors must touch to merge into one polygon")
+                first_document = documents[codes[0]]
+                for code in codes:
+                    documents.pop(code)
+                first_document.update(_sector_payload(
+                    new_code, merged, operation.get("color", first_document.get("color", "#00bcd4")),
+                    datetime.now(timezone.utc), 0,
+                ))
+                documents[new_code] = first_document
+            elif operation_type == "split":
+                code = str(operation.get("code", "")).strip()
+                new_codes = [str(value).strip() for value in operation.get("new_codes") or []]
+                line = operation.get("line") or []
+                if code not in documents or len(new_codes) != 2 or not all(new_codes) or new_codes[0] == new_codes[1]:
+                    raise ValueError("split requires one sector and two distinct new codes")
+                if any(new_code in documents and new_code != code for new_code in new_codes):
+                    raise ValueError("a split sector code already exists")
+                if len(line) != 2:
+                    raise ValueError("split requires two line coordinates")
+                pieces = list(split(shape(documents[code]["geom"]), LineString(line)).geoms)
+                if len(pieces) != 2 or any(piece.geom_type != "Polygon" for piece in pieces):
+                    raise ValueError("split line must divide the sector into exactly two polygons")
+                original = documents.pop(code)
+                for new_code, piece in zip(new_codes, pieces):
+                    document = original.copy()
+                    document.update(_sector_payload(
+                        new_code, piece, operation.get("color", original.get("color", "#00bcd4")),
+                        datetime.now(timezone.utc), 0,
+                    ))
+                    documents[new_code] = document
+            else:
+                raise ValueError("unknown sector operation")
+    except (TypeError, ValueError) as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+    revision = repository.new_revision(pid, "03_sectors_batch", "Validate and apply sector changes")
+    now = datetime.now(timezone.utc)
+    db.sectors.delete_many({"project_id": pid})
+    for document in documents.values():
+        document["project_id"] = pid
+        document["revision_id"] = revision
+        document["updated_at"] = now
+    if documents:
+        db.sectors.insert_many(list(documents.values()))
+
+    for collection in ("zones", "valves", "pipes", "rows", "trees", "driplines", "manifolds", "bom_items"):
+        repository.clear_step(pid, collection)
+
+    return jsonify({"ok": True, "revision": revision, "sector_count": len(documents)})
 
 # ---------------------------------------------------------------- zones
 @bp.route("/zones", methods=["GET", "POST"])

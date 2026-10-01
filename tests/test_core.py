@@ -11,6 +11,7 @@ from core.trees import place_trees_on_row
 from core.driplines import dripline_from_row
 from core.geometry import clean_polygon, fall_direction, inward_offset
 from routes.geometry import _ring_area_m2
+from routes.geometry import _polygon_from_coordinates
 from core.piping import direct_or_detour
 from routes.field import _projection
 from routes.project import _ring_area_m2
@@ -145,6 +146,13 @@ class TestDriplines:
 
 
 class TestGeometry:
+    def test_sector_polygon_validation_closes_open_ring(self):
+        polygon = _polygon_from_coordinates([
+            [2.0, 48.0], [2.001, 48.0], [2.001, 48.001], [2.0, 48.001],
+        ])
+        assert polygon.is_valid
+        assert len(polygon.exterior.coords) == 5
+
     def test_clean_polygon_valid(self):
         """Test that valid polygons pass through unchanged."""
         poly = Polygon([(0, 0), (10, 0), (10, 10), (0, 10)])
