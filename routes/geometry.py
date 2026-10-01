@@ -46,7 +46,7 @@ def sectors():
             "area_m2":  s.get("area_m2", 0),
             "color": s.get("color", "#00bcd4"),
         })
-    return render_template("geometry/sectors.html", sectors=sectors)
+    return render_template("geometry/sectors_enhanced.html", sectors=sectors)
 
 
 @bp.route("/sectors/enhanced")

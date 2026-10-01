@@ -1,6 +1,10 @@
 # Versioning
 
-Current version: `2.1.0`
+Current version: `2.1.1`
+
+## 2.1.1 — 2026-10-01
+
+- Made the map-based editor the default Geometry → Sectors workflow.
 
 ## 2.1.0 — 2026-10-01
 
